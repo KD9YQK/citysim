@@ -15,6 +15,7 @@ from .models import wars_for, create_war, end_war, has_active_war
 from .espionage import queue_spy_training, schedule_espionage
 from .logger import ai_log
 from .resources_base import get_resources, consume_resources
+from .npc_economy import NPCEconomy
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -383,6 +384,14 @@ class NPCAI:
         acted = False
 
         for npc in npcs:
+            eco = NPCEconomy()
+            eco.balance(npc)
+
+            # Optionally skip further actions if the NPC is too broke
+            if not eco.can_afford_action(npc, min_gold=50):
+                ai_log("ECONOMY", f"{npc['name']} skips this tick due to low funds.", npc)
+                continue
+
             self.decay_traits(npc['name'])
             low_threshold = npc_cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
             if sum(get_resources(npc["id"]).values()) < low_threshold:

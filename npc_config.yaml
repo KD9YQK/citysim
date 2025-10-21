@@ -51,3 +51,36 @@ npc_ai:
   # ───────────────────────────────────────────────────────────────────────────
   espionage_logging: true
   espionage_log_mode: "war_only"
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Economic Planning System
+  # ---------------------------------------------------------------------------
+  # These values define when and how NPCs attempt to stabilize their economy
+  # using the global market (Step 5: NPC Economic Planning).
+  # NPCs will automatically buy food if starving or sell surplus goods for gold.
+  # Adjust these thresholds to control market participation frequency.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  # Minimum amount of food an NPC should maintain.
+  # If current food < this value, the NPC will attempt to buy food
+  # from the global market (if it has enough gold).
+  low_food_threshold: 50
+
+  # Minimum gold balance considered “stable.”
+  # If gold < this value, the NPC may sell surplus resources (wood, iron, etc.)
+  # to restore liquidity before performing other actions.
+  low_gold_threshold: 100
+
+  # Defines what “surplus” means for resources.
+  # If an NPC has more than this quantity of a non-critical resource,
+  # it may sell up to 25% of that resource to the market for gold.
+  sell_surplus_threshold: 500
+  # ───────────────────────────────────────────────────────────────────────────
+  # Debugging and Diagnostics
+  # ---------------------------------------------------------------------------
+  # Enable detailed economy trace logs for NPC behavior.
+  # When true, every trade attempt, skip, and resource check will be logged.
+  # When false, only successful or critical events are recorded.
+  # ───────────────────────────────────────────────────────────────────────────
+  debug_economy: true
