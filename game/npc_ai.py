@@ -18,6 +18,8 @@ from .resources_base import get_resources, consume_resources
 from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
 from.market_base import cleanup_trade_history, update_trade_prestige
+from .npc_trait_feedback import decay_all_traits
+
 
 market_behavior = NPCMarketBehavior(debug=False)
 
@@ -430,6 +432,8 @@ class NPCAI:
         if random.random() < npc_cfg.get("trade_history_cleanup", {}).get("cleanup_chance", 0.10):
             cleanup_trade_history()
             ai_log("SYSTEM", "Trade history cleanup executed.", None)
+
+        decay_all_traits()
         ai_log("SYSTEM", f"NPC Actions complete at {time.strftime('%H:%M:%S')}")
 
     # ---------------------------------------------------

@@ -50,7 +50,9 @@ class Database:
                 attack_bonus REAL DEFAULT 1.0,
                 prestige INTEGER DEFAULT 0,
                 last_prestige_update REAL DEFAULT 0,
-                spies INTEGER DEFAULT 0
+                spies INTEGER DEFAULT 0,
+                trait_greed REAL DEFAULT 1.0,
+                trait_risk REAL DEFAULT 1.0
             );
 
             CREATE TABLE IF NOT EXISTS wars (

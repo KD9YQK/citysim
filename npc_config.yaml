@@ -209,3 +209,33 @@ npc_market:
     Cautious: 0.8
     Greedy: 1.0
     Neutral: 1.0
+
+
+# ─────────────────────────────────────────────
+# Economic Trait Feedback (Step 7)
+# ─────────────────────────────────────────────
+# NPCs gradually evolve personality traits based on trade success or failure.
+# Successful traders become bolder (higher greed/risk), while poor performance
+# encourages caution. All modifiers persist in the players table.
+trait_feedback:
+  enabled: true
+
+  # ───── Trade Result Influence ─────
+  # Determines how much greed/risk shifts after each trade.
+  profit_increase_rate: 0.02       # +2% greed/risk after a profitable trade
+  loss_decrease_rate: 0.03         # −3% greed/risk after an unprofitable trade
+  stability_decay: 0.01            # Gradual drift back toward 1.0 baseline per day/tick cycle
+
+  # ───── Prestige Linkage ─────
+  # Converts trade profit/loss into prestige adjustments.
+  prestige_gain_mult: 0.5          # +0.5 prestige per 100 gold profit
+  prestige_loss_mult: 1.0          # −1 prestige per 100 gold loss
+  # Adjust to make prestige react more or less strongly to economics.
+
+  # ───── Value Bounds ─────
+  # Prevents runaway values for trait multipliers.
+  min_trait_value: 0.5
+  max_trait_value: 1.5
+
+  # ───── Logging & Debugging ─────
+  log_trait_changes: true          # Log updates for each NPC trade

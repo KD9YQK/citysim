@@ -12,6 +12,7 @@ from .achievements import process_achievements
 from .random_events import process_random_events
 from .upkeep_system import process_all_upkeep
 from .market_base import update_trade_prestige
+from .npc_trait_feedback import print_npc_traits
 
 
 def process_attacks():
@@ -40,6 +41,8 @@ async def main_loop():
     npc.initialize()
     game_log("WORLD", f"Tick interval: {tick_minutes} minute(s)")
     prestige_tick = 0
+    trait_feedback_tick = 0
+
     while True:
         cfg = load_config("config.yaml")
         tick_minutes = cfg.get("tick_interval", 1)
@@ -69,6 +72,11 @@ async def main_loop():
             process_attacks()
             process_random_events()
             npc.run()
+
+            trait_feedback_tick += 1
+            if trait_feedback_tick >= 15:
+                print_npc_traits(limit=10)
+                trait_feedback_tick = 0
 
             update_trade_leaderboard()
             update_economy_leaderboard()

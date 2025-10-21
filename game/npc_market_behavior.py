@@ -15,6 +15,7 @@ from .npc_economy import NPCEconomy
 from .market_base import get_market_price, buy_from_market, sell_to_market, log_trade
 from .logger import ai_log
 from .utils import load_config, ticks_passed
+from .npc_trait_feedback import update_npc_traits
 
 
 class NPCMarketBehavior(NPCEconomy):
@@ -89,7 +90,7 @@ class NPCMarketBehavior(NPCEconomy):
         resources = econ["resources"]
         gold = econ["gold"]
 
-        personality = npc.get("personality", "Neutral")
+        personality = npc["personality"]
         bias = self.personality_bias.get(personality, 1.0)
         traded = False
 
@@ -127,6 +128,7 @@ class NPCMarketBehavior(NPCEconomy):
                 if result:
                     profit = (base_price - market_price) * qty
                     log_trade(npc["name"], resource, qty, market_price, profit, "buy")
+                    update_npc_traits(npc["name"], profit)
                     ai_log(
                         "MARKET",
                         f"{npc['name']} [{personality}] bought {qty} {resource} "
@@ -143,6 +145,7 @@ class NPCMarketBehavior(NPCEconomy):
                 if result:
                     profit = (market_price - base_price) * qty
                     log_trade(npc["name"], resource, qty, market_price, profit, "sell")
+                    update_npc_traits(npc["name"], profit)
                     ai_log(
                         "MARKET",
                         f"{npc['name']} [{personality}] sold {qty} {resource} "
