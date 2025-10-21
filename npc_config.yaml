@@ -84,3 +84,39 @@ npc_ai:
   # When false, only successful or critical events are recorded.
   # ───────────────────────────────────────────────────────────────────────────
   debug_economy: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Market Behavior Configuration
+  # ---------------------------------------------------------------------------
+  # Controls adaptive NPC trading frequency and behavior variety.
+  # These settings determine how often NPCs attempt speculative trades,
+  # and how strongly personality traits influence their market activity.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  # NPCs will trade no sooner than this many ticks since their last trade.
+  trade_interval_min: 3
+
+  # NPCs will always trade again after this many ticks if possible.
+  trade_interval_max: 8
+
+  # Multipliers that adjust trading aggressiveness by personality type.
+  # Used in Step 7 for linking AI traits to economic decisions.
+  personality_bias:
+    Trader: 1.2      # More likely to trade frequently
+    Cautious: 0.8    # Trades less often
+    Greedy: 1.0      # Normal baseline behavior
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Market Behavior Thresholds
+  # ---------------------------------------------------------------------------
+  # These values determine when NPCs decide to buy or sell based on
+  # resource prices and quantities relative to base market values.
+  # Percentages represent deviation from base prices defined in
+  # resources_config.yaml.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  market_thresholds:
+    buy_below: 0.85     # Buy when price < 85% of base
+    sell_above: 1.20    # Sell when price > 120% of base
+    min_reserve_ratio: 0.20  # Keep at least 20% of each resource (avoid zeroing out)
+    sell_fraction: 0.25  # Sell 25% of surplus when conditions met

@@ -16,6 +16,7 @@ from .espionage import queue_spy_training, schedule_espionage
 from .logger import ai_log
 from .resources_base import get_resources, consume_resources
 from .npc_economy import NPCEconomy
+from .npc_market_behavior import NPCMarketBehavior
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -391,6 +392,9 @@ class NPCAI:
             if not eco.can_afford_action(npc, min_gold=50):
                 ai_log("ECONOMY", f"{npc['name']} skips this tick due to low funds.", npc)
                 continue
+
+            market_ai = NPCMarketBehavior()
+            market_ai.act_on_market(npc)
 
             self.decay_traits(npc['name'])
             low_threshold = npc_cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
