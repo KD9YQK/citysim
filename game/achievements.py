@@ -3,6 +3,7 @@ import time
 from .db import Database
 from .events import send_message
 from .logger import game_log
+from .resources_base import get_resources, load_resource_definitions
 
 
 def ensure_tables():
@@ -44,27 +45,51 @@ def process_achievements():
     game_log("ACHIEVEMENT", "Processing achievements for all players...", level="debug")
     db = Database.instance()
     ensure_tables()
-    players = db.execute("SELECT name, resources, population, prestige FROM players", fetchall=True)
+
+    players = db.execute("SELECT id, name, population, prestige FROM players", fetchall=True)
+    resource_defs = load_resource_definitions()
 
     for p in players:
+        player_id = p["id"]
         name = p["name"]
 
-        # Resource milestones
-        if p["resources"] >= 1000:
+        # --- RESOURCE MILESTONES (Aggregate wealth) ---
+        res_dict = get_resources(player_id)
+        total_resources = sum(res_dict.values())
+
+        if total_resources >= 1000:
             grant_achievement(name, "Wealthy Settler")
-        if p["resources"] >= 10000:
+        if total_resources >= 10000:
             grant_achievement(name, "Master of Coin")
 
-        # Population milestones
-        if p["population"] >= 500:
+        # --- RESOURCE-SPECIFIC MILESTONES ---
+        for res_name, info in resource_defs.items():
+            amount = res_dict.get(res_name, 0)
+
+            # Define scaling thresholds dynamically
+            low_thresh = info.get("starting_amount", 100) * 10
+            high_thresh = low_thresh * 10
+
+            # Example: 1000 food → "Granary Overflowing"
+            #          10000 food → "Lord of Food"
+            title_base = res_name.capitalize()
+            if amount >= low_thresh:
+                grant_achievement(name, f"Skilled in {title_base}")
+            if amount >= high_thresh:
+                grant_achievement(name, f"Master of {title_base}")
+
+        # --- POPULATION MILESTONES ---
+        pop = p["population"]
+        if pop >= 500:
             grant_achievement(name, "Growing City")
-        if p["population"] >= 2000:
+        if pop >= 2000:
             grant_achievement(name, "Metropolis")
 
-        # Prestige milestones
-        if p["prestige"] >= 500:
+        # --- PRESTIGE MILESTONES ---
+        prestige = p["prestige"]
+        if prestige >= 500:
             grant_achievement(name, "Respected Leader")
-        if p["prestige"] >= 2000:
+        if prestige >= 2000:
             grant_achievement(name, "World Renowned")
 
 

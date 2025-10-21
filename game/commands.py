@@ -10,6 +10,7 @@ from .economy import calculate_resources_per_tick
 from .ranking import display_rankings, display_prestige_history
 from .espionage import schedule_espionage, queue_spy_training
 from .lore import get_random_lore
+from .resources_base import get_resources
 
 
 def ensure_player(name):
@@ -428,10 +429,13 @@ def command_status(player_name):
     garrisoned = max(player["troops"], 0)
     deployed = total_deployed
 
+    res_dict = get_resources(player["id"])
+    res_str = " | ".join(f"{k.capitalize()} {int(v)}" for k, v in res_dict.items())
+
     # --- Column layout ---
     left = [
         f"City: {player['name']}",
-        f"Resources: {player['resources']}",
+        f"Resources:\r\n  {res_str}",
         f"Population: {player['population']}/{player['max_population']}",
         f"Troops: {garrisoned + total_deployed}/{player['max_troops']}",
         f"  Garrisoned: {garrisoned}",

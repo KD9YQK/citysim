@@ -8,6 +8,7 @@ import time
 from .db import Database
 from .utils import load_config
 from .events import send_message
+from .resources_base import get_resources, load_resource_definitions
 
 
 def ensure_tables():
@@ -26,7 +27,7 @@ def ensure_tables():
 def update_prestige(player):
     """
     Recalculate prestige for a single player using weighted factors.
-    Weights and bonuses are defined in config.yaml under `prestige_weights`.
+    Weighted resource value uses base_price from resources_config.yaml.
     """
     db = Database.instance()
     cfg = load_config("config.yaml")
@@ -36,31 +37,36 @@ def update_prestige(player):
     if not p:
         return
 
-    # --- Core stats from DB ---
-    resources = p["resources"]
+    # --- Compute weighted resource value ---
+    res_dict = get_resources(p["id"])
+    defs = load_resource_definitions()
+
+    weighted_resources = 0.0
+    for name, amount in res_dict.items():
+        base_price = defs.get(name, {}).get("base_price", 1.0)
+        weighted_resources += amount * base_price
+
     population = p["population"]
 
     total_buildings = db.execute(
         "SELECT COUNT(*) AS c FROM buildings WHERE player_name=?", (player,), fetchone=True
     )["c"]
 
-    # Count how many battles this player has won
     battles_won = db.execute(
         "SELECT COUNT(*) AS c FROM attacks WHERE attacker_name=? AND result='win'",
         (player,), fetchone=True
     )["c"]
 
-    # Check current diplomacy status
     at_war = db.execute(
         "SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
-        (p['id'], p['id']), fetchone=True
+        (p["id"], p["id"]), fetchone=True
     )
     peace_bonus = 10 if not at_war else 0
 
     # --- Weighted prestige calculation ---
     prestige = int(
         battles_won * weights.get("battles_won", 10)
-        + resources * weights.get("resources_gained", 0.01)
+        + weighted_resources * weights.get("resources_gained", 0.01)
         + population * weights.get("population", 0.05)
         + total_buildings * weights.get("buildings", 2)
         + peace_bonus * weights.get("peace_bonus", 1)
@@ -71,7 +77,6 @@ def update_prestige(player):
         (prestige, time.time(), player),
     )
 
-    # Record snapshot to history table
     db.execute(
         "INSERT INTO prestige_history (player, prestige, timestamp) VALUES (?, ?, ?)",
         (player, prestige, time.time()),

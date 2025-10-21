@@ -14,6 +14,7 @@ from .events import clear_npc_messages
 from .models import wars_for, create_war, end_war, has_active_war
 from .espionage import queue_spy_training, schedule_espionage
 from .logger import ai_log
+from .resources_base import get_resources, consume_resources
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -54,7 +55,8 @@ def choose_best_building(npc):
     # Key ratios
     pop_ratio = player["population"] / max(1, player["max_population"])
     troop_ratio = player["troops"] / max(1, player["max_troops"])
-    resources = player["resources"]
+    res_dict = get_resources(player["id"])
+    resources = sum(res_dict.values())  # total available wealth
 
     # Context flags
     at_war = len(db.execute("SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
@@ -114,7 +116,9 @@ def choose_training_amount(npc):
         return 0
 
     troop_cost = cfg.get("resource_cost_per_troop", 10)
-    resources = player["resources"]
+    res_dict = get_resources(player["id"])
+    resources = res_dict.get("gold", sum(res_dict.values()))
+
     available_troops = player["max_troops"] - player["troops"]
 
     # Skip training if poor or full
@@ -253,11 +257,23 @@ class NPCAI:
             return  # Already building it
 
         player = self.db.execute("SELECT * FROM players WHERE name=?", (npc["name"],), fetchone=True)
-        if not player or player["resources"] < cost:
+        if not player:
             return
 
-        # Pay cost and queue
-        self.db.execute("UPDATE players SET resources = resources - ? WHERE name=?", (cost, npc["name"]))
+        res_dict = get_resources(player["id"])
+        wealth = res_dict.get("gold", sum(res_dict.values()))
+
+        if wealth < cost:
+            return
+
+        # Spend via centralized resource system
+        if not consume_resources(player["id"], {"gold": cost}):
+            return
+
+        queue_building_job(npc["name"], building)
+        self.mark_active(npc["name"])
+        ai_log("BUILD", f"{npc['name']} started building {building} (cost {cost} gold)", npc)
+
         queue_building_job(npc["name"], building)
         self.mark_active(npc["name"])
         ai_log("BUILD", f"{npc['name']} started building {building} ({cost} resources)", npc)
@@ -279,13 +295,17 @@ class NPCAI:
         if not player:
             return False
 
-        if player["resources"] < total_cost or player["population"] < amount:
+        res_dict = get_resources(player["id"])
+        wealth = res_dict.get("gold", sum(res_dict.values()))
+        if wealth < total_cost or player["population"] < amount:
             return False
 
-        # Spend immediately
+        if not consume_resources(player["id"], {"gold": total_cost}):
+            return False
+
         self.db.execute(
-            "UPDATE players SET resources = resources - ?, population = population - ? WHERE name=?",
-            (total_cost, amount, npc["name"]),
+            "UPDATE players SET population = population - ? WHERE name=?",
+            (amount, npc["name"]),
         )
 
         queue_training_job(npc["name"], amount)
@@ -364,7 +384,7 @@ class NPCAI:
         for npc in npcs:
             self.decay_traits(npc['name'])
             low_threshold = cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
-            if npc["resources"] < low_threshold:
+            if sum(get_resources(npc["id"]).values()) < low_threshold:
                 self.evolve_traits(npc["name"], "low_resources")
                 acted = True
 
@@ -520,7 +540,7 @@ class NPCAI:
         )["cnt"] > 0
 
         # === CASE 1: NPC is weak and losing ===
-        if troop_ratio < 0.25 or npc["resources"] < 50:
+        if troop_ratio < 0.25 or sum(get_resources(npc["id"]).values()) < 50:
             # If in active wars, try to make peace
             if active_wars and random.random() < (traits["peace_chance"] + 0.1):
                 target = random.choice(active_wars)
@@ -531,7 +551,7 @@ class NPCAI:
                 return True
 
         # === CASE 2: NPC is strong or aggressive ===
-        if troop_ratio > 0.6 and npc["resources"] > 100:
+        if troop_ratio > 0.6 and sum(get_resources(npc["id"]).values()) > 100:
             # More likely to start war if no current conflicts
             if not active_wars and random.random() < traits["attack_chance"]:
                 target_candidates = [p for p in all_players if p["name"] != npc["name"]]
@@ -629,7 +649,7 @@ class NPCAI:
         log_mode = cfg.get("espionage_log_mode", "all")
 
         # Skip if no spies available
-        data = db.execute("SELECT spies, resources FROM players WHERE name=?", (name,), fetchone=True)
+        data = db.execute("SELECT spies FROM players WHERE name=?", (name,), fetchone=True)
         if not data or data["spies"] <= 0:
             return False
 
@@ -646,7 +666,7 @@ class NPCAI:
         # Load intel
         intel = get_recent_intel(name)
         known_targets = {i["target"] for i in intel}
-        rich_targets = [i for i in intel if i["resources"] and i["resources"] > 300]
+        rich_targets = [i for i in intel if sum(get_resources(i["id"]).values()) and sum(get_resources(i["id"]).values()) > 300]
         strong_targets = [i for i in intel if i["troops"] and i["troops"] > 200]
 
         # Prefer unexplored targets 70% of the time

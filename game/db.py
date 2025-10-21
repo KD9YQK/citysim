@@ -37,7 +37,6 @@ class Database:
                 is_npc INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 troops INTEGER DEFAULT 0,
-                resources INTEGER DEFAULT 0,
                 population INTEGER DEFAULT 0,
                 max_population INTEGER DEFAULT 100,
                 max_troops INTEGER DEFAULT 500,
@@ -140,6 +139,12 @@ class Database:
                 amount INTEGER NOT NULL,
                 start_time REAL NOT NULL,
                 processed INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS player_resources (
+                player_id INTEGER NOT NULL,
+                resource_name TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                PRIMARY KEY (player_id, resource_name)
             );
             """)
             cur.close()
