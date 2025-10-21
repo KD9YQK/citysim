@@ -10,6 +10,7 @@ from .espionage import process_espionage_jobs, process_spy_training_jobs
 from .logger import game_log
 from .achievements import process_achievements
 from .random_events import process_random_events
+from .upkeep_system import process_all_upkeep
 
 
 def process_attacks():
@@ -52,6 +53,7 @@ async def main_loop():
                 update_population(p["name"])
                 gain_resources_from_population(p["name"])
 
+            process_all_upkeep()
             process_espionage_jobs()
             process_spy_training_jobs()
             prestige_tick += 1
