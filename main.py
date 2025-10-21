@@ -15,8 +15,8 @@ def prepare():
 
 if __name__ == '__main__':
     prepare()
-    cfg = load_config()
+    game_cfg = load_config()
     try:
-        asyncio.run(start_server(cfg))
+        asyncio.run(start_server(game_cfg))
     except KeyboardInterrupt:
         print('Shutting down...')

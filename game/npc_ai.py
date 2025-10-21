@@ -46,7 +46,6 @@ def get_recent_intel(npc_name, max_age_ticks=200):
 def choose_best_building(npc):
     """Selects the most suitable building for the NPC to construct."""
     db = Database.instance()
-    cfg = load_config("config.yaml")
     bcfg = load_config("buildings_config.yaml")
     player = db.execute("SELECT * FROM players WHERE name=?", (npc["name"],), fetchone=True)
     if not player:
@@ -653,10 +652,8 @@ class NPCAI:
         # Prefer unexplored targets 70% of the time
         if random.random() < 0.7:
             candidates = [t for t in all_targets if t not in known_targets]
-            reason = "prefers new/unscouted targets"
         else:
             candidates = all_targets
-            reason = "revisiting known targets"
 
         if not candidates:
             candidates = all_targets
@@ -715,5 +712,3 @@ class NPCAI:
         if logging_enabled and "launched" not in result:
             ai_log("ESPIONAGE", f"{name} failed espionage: {result.strip()}", npc)
         return False
-
-

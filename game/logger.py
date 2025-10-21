@@ -2,28 +2,28 @@ from .utils import load_config
 
 color_map = {
     # --- Core Game Systems ---
-    "DB": "\033[95m",          # magenta - database and persistence
-    "WORLD": "\033[94m",       # blue - world ticks, population, global updates
-    "BUILD": "\033[93m",       # yellow - building and construction
-    "TRAIN": "\033[92m",       # green - troop or spy training
-    "WAR": "\033[91m",         # red - combat and diplomacy
-    "ECONOMY": "\033[96m",     # cyan - resource production and flow
+    "DB": "\033[95m",  # magenta - database and persistence
+    "WORLD": "\033[94m",  # blue - world ticks, population, global updates
+    "BUILD": "\033[93m",  # yellow - building and construction
+    "TRAIN": "\033[92m",  # green - troop or spy training
+    "WAR": "\033[91m",  # red - combat and diplomacy
+    "ECONOMY": "\033[96m",  # cyan - resource production and flow
 
     # --- Narrative / Flavor ---
-    "EVENT": "\033[90m",       # bright gray - general events
-    "ACHIEVEMENT": "\033[33m", # gold - milestone achievements
-    "LORE": "\033[36m",        # teal - lore or flavor text
+    "EVENT": "\033[90m",  # bright gray - general events
+    "ACHIEVEMENT": "\033[33m",  # gold - milestone achievements
+    "LORE": "\033[36m",  # teal - lore or flavor text
 
     # --- NPC / AI Specific ---
-    "SYSTEM": "\033[97m",      # bright white - AI/system actions or setup
-    "ESPIONAGE": "\033[35m",   # purple - spy missions, intel ops
-    "TRAITS": "\033[38;5;208m",# orange - AI personality evolution
-    "BUILD_AI": "\033[93m",    # alias safety if AI logs BUILD differently
-    "TRAIN_AI": "\033[92m",    # alias safety for AI training
-    "WAR_AI": "\033[91m",      # alias safety for AI war
+    "SYSTEM": "\033[97m",  # bright white - AI/system actions or setup
+    "ESPIONAGE": "\033[35m",  # purple - spy missions, intel ops
+    "TRAITS": "\033[38;5;208m",  # orange - AI personality evolution
+    "BUILD_AI": "\033[93m",  # alias safety if AI logs BUILD differently
+    "TRAIN_AI": "\033[92m",  # alias safety for AI training
+    "WAR_AI": "\033[91m",  # alias safety for AI war
 
     # --- Reset ---
-    "END": "\033[0m"           # reset
+    "END": "\033[0m"  # reset
 }
 
 

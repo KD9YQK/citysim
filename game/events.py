@@ -1,9 +1,9 @@
 import asyncio
+from .db import Database
+import time
 
 clients = set()
 clients_lock = asyncio.Lock()
-from .db import Database
-import time
 
 
 async def broadcast(message: str):

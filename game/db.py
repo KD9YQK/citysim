@@ -162,5 +162,5 @@ class Database:
         with self._lock2:
             try:
                 self._conn.close()
-            except:
+            except Exception:
                 pass

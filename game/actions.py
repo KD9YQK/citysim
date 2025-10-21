@@ -6,6 +6,7 @@ from .models import get_player_by_name, adjust_troops
 from .utils import load_config, ticks_passed, ticks_to_minutes
 from .logger import game_log
 
+
 # ----------------------------------------------------------------------
 # ATTACK SCHEDULING
 # ----------------------------------------------------------------------
@@ -136,7 +137,6 @@ def resolve_battle(attacker_name, defender_name, attacking_troops, attack_id):
         db.execute("UPDATE attacks SET status='complete', result='win' WHERE id=?", (attack_id,))
 
 
-
 # ----------------------------------------------------------------------
 # TRAINING JOBS
 # ----------------------------------------------------------------------
@@ -170,7 +170,6 @@ def process_training_jobs():
 # ----------------------------------------------------------------------
 def process_building_jobs():
     """Processes all building construction jobs that have completed."""
-    now = int(time.time())
     db = Database.instance()
     bcfg = load_config("buildings_config.yaml")
     rows = db.execute(
@@ -206,4 +205,3 @@ def process_building_jobs():
             from .events import send_message
             msg = f"Your {job['building_name']} construction has completed!"
             send_message(job["player_name"], msg)
-

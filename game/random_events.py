@@ -4,6 +4,7 @@ from .db import Database
 from .events import send_message
 from .logger import game_log
 
+
 def process_random_events():
     """Each tick, small chance per player to find resources or suffer mishaps."""
     db = Database.instance()

@@ -151,7 +151,6 @@ def end_war(player1_name, player2_name):
     return f"Peace established with {player2_name}."
 
 
-
 def wars_for(name):
     p = get_player_by_name(name)
     if not p:
@@ -345,7 +344,9 @@ def recalculate_all_player_stats():
                 defense_attack_bonus = ?,
                 attack_bonus = ?
             WHERE name = ?
-        """, (base_max_troops, base_max_population, base_defense_bonus, base_defense_attack_bonus, base_attack_bonus, name))
+        """, (
+            base_max_troops, base_max_population, base_defense_bonus, base_defense_attack_bonus, base_attack_bonus,
+            name))
 
         # Apply bonuses from buildings
         buildings = db.execute(

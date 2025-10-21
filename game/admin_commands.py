@@ -219,7 +219,7 @@ def handle_admin_command(player_name, cmd, args):
         p = get_player_by_name(target)
         if not p:
             return f"Player {target} not found."
-        return command_status(target, show_msgs=False)
+        return command_status(target)
 
     # ADMIN RECALC STATS
     if cmd == "admin_recalc_stats":

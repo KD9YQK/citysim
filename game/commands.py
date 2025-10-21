@@ -11,6 +11,7 @@ from .ranking import display_rankings, display_prestige_history
 from .espionage import schedule_espionage, queue_spy_training
 from .lore import get_random_lore
 
+
 def ensure_player(name):
     p = get_player_by_name(name)
     if p:
@@ -220,18 +221,14 @@ async def handle_command(player_name, line):
         spy_cost = espionage_cfg.get("train_cost", 10)
         spy_train_time = espionage_cfg.get("train_time", 8)
 
-        lines = []
-        lines.append("\r\n=== COSTS AND PRICES ===\r\n")
+        lines = ["\r\n=== COSTS AND PRICES ===\r\n", "Training:",
+                 f"  Troop: {troop_cost} resources + 1 population (takes {training_time} min)",
+                 f"  Spy  : {spy_cost} resources (takes {spy_train_time} min)\r\n", "Buildings:\r\n",
+                 f"{'Name':<16} | {'Cost':<8} | {'Build Time':<10} | {'Attributes'}", "-" * 70]
 
         # --- Troops & Spies ---
-        lines.append("Training:")
-        lines.append(f"  Troop: {troop_cost} resources + 1 population (takes {training_time} min)")
-        lines.append(f"  Spy  : {spy_cost} resources (takes {spy_train_time} min)\r\n")
 
         # --- Building table header ---
-        lines.append("Buildings:\r\n")
-        lines.append(f"{'Name':<16} | {'Cost':<8} | {'Build Time':<10} | {'Attributes'}")
-        lines.append("-" * 70)
 
         # --- Sort and iterate buildings ---
         for name, data in sorted(bcfg.items()):
@@ -275,8 +272,6 @@ def command_status(player_name):
     )
     if not player:
         return "Player not found.\r\n"
-
-    now = int(time.time())
 
     # --- Buildings ---
     buildings = db.execute(
@@ -517,4 +512,3 @@ def command_spy_reports(player):
         ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["timestamp"]))
         retval.append(f"[{ts}] Report on {r['target']}:\r\n{r['report']}")
     return "\r\n".join(retval)
-

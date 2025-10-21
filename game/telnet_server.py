@@ -94,7 +94,7 @@ async def handle_client(reader, writer):
     try:
         # Send banner with CRLF (PuTTY safe)
         writer.write(b"\r\nWelcome to CitySim!\r\n")
-        login_lore:str = f"    {get_random_lore()}\r\n\r\n"
+        login_lore: str = f"    {get_random_lore()}\r\n\r\n"
         writer.write(login_lore.encode())
         writer.write(b"Enter your name: ")
         await writer.drain()
@@ -170,7 +170,6 @@ async def handle_client(reader, writer):
         except Exception:
             pass
         print(f"[DISCONNECT] {addr} closed connection")
-
 
 
 async def start_server(cfg):
