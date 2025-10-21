@@ -112,8 +112,8 @@ def process_all_upkeep():
         try:
             pid = p["id"]
             name = p["name"]
-            pop = p.get("population", 0)
-            army = p.get("troops", 0)
+            pop = p["population"]
+            army = p["troops"]
 
             pop_report = apply_population_upkeep(pid, name, pop)
             army_report = apply_army_upkeep(pid, name, army)
