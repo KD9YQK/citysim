@@ -27,6 +27,27 @@ npc_ai:
     low_resources: 0.05
     attacked: 0.05
 
+  # --- Trait Evolution Control ---
+  trait_evolution:
+    enabled: true
+    # How much a single event nudges a trait toward/away from its base (0–1)
+    evolution_rate: 0.03
+    # Chance each tick to evaluate and apply an evolution update
+    evolution_tick_chance: 0.15
+
+    # Event weight multipliers (tuned to personality feedback)
+    events:
+      trade_profit: 0.6     # Success in market increases build_chance
+      trade_loss: -0.4     # Loss in market lowers build_chance
+      war_win: 0.5     # Success in combat increases attack_chance
+      war_loss: -0.5     # Defeat lowers attack_chance
+      long_peace: 0.2      # Peaceful stretch increases peace_chance slightly
+      low_wealth: -0.3      # Poverty encourages aggression
+      high_wealth: 0.3      # Prosperity encourages peace/building
+
+    # Clamp range for traits to prevent runaway personalities
+    clamp_min: 0.05
+    clamp_max: 0.95
 
   # ───────────────────────────────────────────────────────────────────────────
   # Trait Decay
@@ -120,3 +141,33 @@ npc_ai:
     sell_above: 1.20    # Sell when price > 120% of base
     min_reserve_ratio: 0.20  # Keep at least 20% of each resource (avoid zeroing out)
     sell_fraction: 0.25  # Sell 25% of surplus when conditions met
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trade History Maintenance
+  # ---------------------------------------------------------------------------
+  # Controls automatic pruning of the trade_history table to manage size.
+  # Records older than retention_days are removed during NPC AI runs.
+  # cleanup_chance determines how often cleanup is triggered each tick.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  trade_history_cleanup:
+    enabled: true
+    retention_days: 7        # Keep one week of trade records
+    cleanup_chance: 0.10     # 10% chance per tick to perform cleanup
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Prestige Scaling
+  # ---------------------------------------------------------------------------
+  # Converts lifetime trade profit into prestige gain.
+  # Example: 0.0025 → every +400 total profit = +1 prestige
+  # ---------------------------------------------------------------------------
+  prestige:
+    trade_profit_multiplier: 0.0025
+
+  prestige_hook:
+    enabled: true
+    weight_per_100_gold: 1.0    # Each +100 lifetime profit = +1 prestige
+    update_interval_days: 1     # (reserved) for future tick timing use
+    leaderboard_limit: 10       # Number of top traders to display per tick
+

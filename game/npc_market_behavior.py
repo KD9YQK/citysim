@@ -10,7 +10,7 @@ Each NPC's personality adjusts its aggressiveness and timing.
 
 import time, random
 from .npc_economy import NPCEconomy
-from .market_base import get_market_price, buy_from_market, sell_to_market
+from .market_base import get_market_price, buy_from_market, sell_to_market, log_trade
 from .logger import ai_log
 from .utils import load_config, ticks_passed
 
@@ -85,7 +85,7 @@ class NPCMarketBehavior(NPCEconomy):
         gold = econ["gold"]
 
         # Determine personality bias (default 1.0)
-        personality = npc.get("personality", "Greedy")
+        personality = npc["personality"]
         bias = self.personality_bias.get(personality, 1.0)
 
         traded = False
@@ -118,6 +118,9 @@ class NPCMarketBehavior(NPCEconomy):
             if price_ratio < buy_threshold and gold > base_price * 10:
                 qty = max(5, int((buy_threshold - price_ratio) * 100))
                 result = buy_from_market(npc["name"], resource, qty)
+                if result:
+                    profit = (base_price - market_price) * qty  # positive if bought cheap
+                    log_trade(npc["name"], resource, qty, market_price, profit, "buy")
                 ai_log(
                     "MARKET",
                     f"{npc['name']} [{personality}] bought {qty} {resource} "
@@ -134,6 +137,9 @@ class NPCMarketBehavior(NPCEconomy):
             ):
                 qty = int(amount * self.sell_fraction)
                 result = sell_to_market(npc["name"], resource, qty)
+                if result:
+                    profit = (market_price - base_price) * qty  # positive if sold high
+                    log_trade(npc["name"], resource, qty, market_price, profit, "sell")
                 ai_log(
                     "MARKET",
                     f"{npc['name']} [{personality}] sold {qty} {resource} "

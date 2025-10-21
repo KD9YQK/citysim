@@ -20,6 +20,7 @@ from .resources_base import (
     load_resource_definitions,
 )
 from .utils import load_config
+from .ranking import update_prestige
 
 
 # ---------------------------------------------------------------------
@@ -197,6 +198,21 @@ def sell_to_market(player_name: str, resource: str, quantity: int) -> str:
     return f"Sold {quantity} {resource} @ {price_per_unit:.2f} (total {total_value:.2f} gold)."
 
 
+def log_trade(npc_name, resource, quantity, price, profit, action):
+    """Insert a trade record into trade_history for NPC feedback."""
+    db = Database.instance()
+    total_value = price * quantity
+    db.execute(
+        """
+        INSERT INTO trade_history (npc_name, resource, quantity, price, total_value, profit, action)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (npc_name, resource, quantity, price, total_value, profit, action),
+    )
+    update_trade_summary(npc_name, profit)
+    update_cumulative_trade_performance(npc_name, profit)
+
+
 # ---------------------------------------------------------------------
 # Reporting and summary
 # ---------------------------------------------------------------------
@@ -233,3 +249,101 @@ def format_market_summary():
         )
     lines.append("-" * 46)
     return "\n".join(lines)
+
+
+def cleanup_trade_history():
+    """
+    Deletes old trade records beyond the configured retention period.
+    Lightweight maintenance to prevent database growth.
+    """
+    from .utils import load_config
+    import time
+
+    cfg = load_config("npc_config.yaml")["npc_ai"].get("trade_history_cleanup", {})
+    if not cfg.get("enabled", True):
+        return
+
+    retention_days = cfg.get("retention_days", 7)
+    cutoff = time.time() - (retention_days * 86400)
+
+    db = Database.instance()
+    db.execute("DELETE FROM trade_history WHERE timestamp < ?", (cutoff,))
+
+
+def update_trade_summary(npc_name: str, profit: float):
+    """Accumulates profit/loss into trade_summary for long-term tracking."""
+    db = Database.instance()
+    existing = db.execute(
+        "SELECT total_trades, total_profit, best_trade, worst_trade FROM trade_summary WHERE npc_name=?",
+        (npc_name,),
+        fetchone=True,
+    )
+
+    if existing:
+        total_trades = existing["total_trades"] + 1
+        total_profit = existing["total_profit"] + profit
+        best_trade = max(existing["best_trade"], profit)
+        worst_trade = min(existing["worst_trade"], profit)
+        avg_profit = total_profit / total_trades
+        db.execute(
+            """
+            UPDATE trade_summary
+            SET total_trades=?, total_profit=?, avg_profit=?, best_trade=?, worst_trade=?, last_update=strftime('%s','now')
+            WHERE npc_name=?
+            """,
+            (total_trades, total_profit, avg_profit, best_trade, worst_trade, npc_name),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO trade_summary (npc_name, total_trades, total_profit, avg_profit, best_trade, worst_trade)
+            VALUES (?, 1, ?, ?, ?, ?)
+            """,
+            (npc_name, profit, profit, profit, profit),
+        )
+
+
+def update_cumulative_trade_performance(npc_name: str, profit: float):
+    """
+    Tracks cumulative total trade profit per NPC for prestige and ranking.
+    This table never resets, unlike trade_history which is pruned regularly.
+    """
+    db = Database.instance()
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS npc_trade_stats (
+            npc_name TEXT PRIMARY KEY,
+            total_profit REAL DEFAULT 0,
+            trades INTEGER DEFAULT 0
+        )
+    """)
+    existing = db.execute("SELECT * FROM npc_trade_stats WHERE npc_name=?", (npc_name,), fetchone=True)
+    if existing:
+        db.execute(
+            "UPDATE npc_trade_stats SET total_profit = total_profit + ?, trades = trades + 1 WHERE npc_name=?",
+            (profit, npc_name)
+        )
+    else:
+        db.execute(
+            "INSERT INTO npc_trade_stats (npc_name, total_profit, trades) VALUES (?, ?, ?)",
+            (npc_name, profit, 1)
+        )
+
+
+def update_trade_prestige():
+    """
+    Grants prestige to NPCs based on lifetime trade profits.
+    Triggered occasionally from npc_ai.run().
+    """
+    from .utils import load_config
+    cfg = load_config("npc_config.yaml")["npc_ai"].get("prestige_hook", {})
+    if not cfg.get("enabled", False):
+        return
+
+    db = Database.instance()
+    rows = db.execute("SELECT * FROM npc_trade_stats", fetchall=True)
+    weight = cfg.get("weight_per_100_gold", 1.0)
+    for r in rows:
+        gain = int((r["total_profit"] / 100.0) * weight)
+        if gain > 0:
+            db.execute("UPDATE players SET prestige = prestige + ? WHERE name=?", (gain, r["npc_name"]))
+            update_prestige(r["npc_name"])

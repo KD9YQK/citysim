@@ -150,6 +150,31 @@ class Database:
                 resource_name TEXT PRIMARY KEY,
                 supply REAL NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS trade_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                npc_name TEXT NOT NULL,
+                resource TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                price REAL NOT NULL,
+                total_value REAL NOT NULL,
+                profit REAL NOT NULL,
+                action TEXT CHECK(action IN ('buy','sell')) NOT NULL,
+                timestamp REAL DEFAULT (strftime('%s','now'))
+            );
+            CREATE TABLE IF NOT EXISTS trade_summary (
+                npc_name TEXT PRIMARY KEY,
+                total_trades INTEGER DEFAULT 0,
+                total_profit REAL DEFAULT 0,
+                avg_profit REAL DEFAULT 0,
+                best_trade REAL DEFAULT 0,
+                worst_trade REAL DEFAULT 0,
+                last_update REAL DEFAULT (strftime('%s','now'))
+            );
+            CREATE TABLE IF NOT EXISTS npc_trade_stats (
+                npc_name TEXT PRIMARY KEY,
+                total_profit REAL DEFAULT 0,
+                trades INTEGER DEFAULT 0
+            );
             """)
             cur.close()
 

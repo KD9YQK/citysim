@@ -17,6 +17,7 @@ from .logger import ai_log
 from .resources_base import get_resources, consume_resources
 from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
+from.market_base import cleanup_trade_history, update_trade_prestige
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -415,6 +416,18 @@ class NPCAI:
             if acted:
                 self.mark_active(npc['name'])
 
+            # --- Personality Feedback Integration ---
+            if npc_cfg.get("trait_evolution", {}).get("enabled", True):
+                if random.random() < npc_cfg["trait_evolution"].get("evolution_tick_chance", 0.15):
+                    self.evaluate_personality_feedback(npc)
+
+        if random.random() < 0.02:  # ~2% chance per tick
+            update_trade_prestige()
+            ai_log("PRESTIGE", "Trade-based prestige recalculated.", None)
+
+        if random.random() < npc_cfg.get("trade_history_cleanup", {}).get("cleanup_chance", 0.10):
+            cleanup_trade_history()
+            ai_log("SYSTEM", "Trade history cleanup executed.", None)
         ai_log("SYSTEM", f"NPC Actions complete at {time.strftime('%H:%M:%S')}")
 
     # ---------------------------------------------------
@@ -524,6 +537,59 @@ class NPCAI:
             traits[key] += diff * decay_rate
 
         self.update_traits(npc_name, traits)
+
+    def evaluate_personality_feedback(self, npc):
+        """Gradually evolve NPC traits based on economic and military performance."""
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]["trait_evolution"]
+        evo_rate = npc_cfg.get("evolution_rate", 0.03)
+        clamp_min = npc_cfg.get("clamp_min", 0.05)
+        clamp_max = npc_cfg.get("clamp_max", 0.95)
+
+        traits = self.db.execute("SELECT * FROM npc_traits WHERE name=?", (npc["name"],), fetchone=True)
+        if not traits:
+            return
+        traits = dict(traits)
+        base_profile = self.PERSONALITY_PROFILES.get(npc["personality"], {})
+
+        # Basic performance metrics
+        gold = get_resources(npc["id"]).get("gold", 0)
+        recent_trades = self.db.execute(
+            "SELECT SUM(profit) as total_profit FROM trade_history WHERE npc_name=? AND timestamp > ?",
+            (npc["name"], time.time() - 3600),
+            fetchone=True,
+        )
+        profit = recent_trades["total_profit"] if recent_trades and recent_trades["total_profit"] else 0
+
+        # Determine direction of evolution
+        if profit > 0:
+            delta_build = evo_rate * npc_cfg["events"].get("trade_profit", 0.5)
+        elif profit < 0:
+            delta_build = evo_rate * npc_cfg["events"].get("trade_loss", -0.4)
+        else:
+            delta_build = 0
+
+        wars = wars_for(npc["name"])
+        active_wars = [w for w in wars if w["status"] == "active"]
+        if not active_wars and profit >= 0:
+            delta_peace = evo_rate * npc_cfg["events"].get("long_peace", 0.2)
+        else:
+            delta_peace = 0
+
+        # Wealth-based modulation
+        if gold < 100:
+            delta_attack = evo_rate * npc_cfg["events"].get("low_wealth", -0.3)
+        elif gold > 1000:
+            delta_attack = evo_rate * npc_cfg["events"].get("high_wealth", 0.3)
+        else:
+            delta_attack = 0
+
+        # Apply and clamp
+        traits["build_chance"] = min(clamp_max, max(clamp_min, traits["build_chance"] + delta_build))
+        traits["peace_chance"] = min(clamp_max, max(clamp_min, traits["peace_chance"] + delta_peace))
+        traits["attack_chance"] = min(clamp_max, max(clamp_min, traits["attack_chance"] + delta_attack))
+
+        self.update_traits(npc["name"], traits)
+        ai_log("TRAITS", f"{npc['name']} evolved traits via feedback: {traits}", npc)
 
     def mark_active(self, npc_name):
         """Record the last time this NPC performed an action."""
