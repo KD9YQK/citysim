@@ -171,3 +171,41 @@ npc_ai:
     update_interval_days: 1     # (reserved) for future tick timing use
     leaderboard_limit: 10       # Number of top traders to display per tick
 
+# ───────────────────────────────────────────────────────────────
+# NPC Market Behavior (Step 6)
+# ----------------------------------------------------------------
+# Controls adaptive market actions for NPCs. Each NPC decides when
+# and how to trade based on its personality, recent performance,
+# and the ratio between current and base resource prices.
+# ───────────────────────────────────────────────────────────────
+npc_market:
+
+  # ─────────── Trade Timing ───────────
+  trade_interval_min: 3          # Minimum ticks between trades
+  trade_interval_max: 8          # Maximum ticks between trades
+  # These create variability — faster traders, slower warlords.
+
+  # ─────────── Price Sensitivity ─────
+  buy_below_ratio: 0.85          # Buy when market price < 85% of base price
+  sell_above_ratio: 1.20         # Sell when market price > 120% of base price
+  # Personalities modify these internally (see personality_bias).
+
+  # ─────────── Inventory Management ───
+  min_reserve_ratio: 0.20        # Keep at least 20% of resources before selling
+  sell_fraction: 0.25            # Sell up to 25% of holdings each trade
+
+  # ─────────── Trade Quantity Rules ──
+  min_trade_quantity: 10         # Smallest possible trade
+  max_trade_quantity: 100        # Largest possible trade
+  random_price_variance: 0.10    # Up to ±10% deviation from market price when trading
+  # Adds randomness so NPCs don’t all act identically.
+
+  # ─────────── Personality Multipliers ───────
+  # Used internally to bias threshold behavior:
+  # - Higher = more aggressive trader (acts more often, buys low/sells high)
+  # - Lower = cautious trader (waits longer, less risk)
+  personality_bias:
+    Trader: 1.2
+    Cautious: 0.8
+    Greedy: 1.0
+    Neutral: 1.0

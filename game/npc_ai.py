@@ -19,6 +19,8 @@ from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
 from.market_base import cleanup_trade_history, update_trade_prestige
 
+market_behavior = NPCMarketBehavior(debug=False)
+
 
 def get_recent_intel(npc_name, max_age_ticks=200):
     """Return recent intel reports for this NPC, filtered by age."""
