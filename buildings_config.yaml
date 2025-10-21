@@ -1,0 +1,81 @@
+# === CitySim Building Configuration ===
+# Each building entry defines its cost, build time, and specific bonuses.
+# All values are fully configurable and can be adjusted for balance testing.
+
+Walls:
+  description: "Increases defending units' defense multiplier."
+  cost: 200                   # Resource cost to construct
+  build_time: 10              # Ticks to complete construction
+  defense_bonus: 0.25         # Increases defending units' defense multiplier by 25%
+
+Towers:
+  description: "Increases defending units' counterattack strength."
+  cost: 150
+  build_time: 15
+  defense_attack_bonus: 0.15  # Increases defending units' counterattack strength by 15%
+
+Barracks:
+  description: "Increases the max troops."
+  cost: 300
+  build_time: 15
+  troop_cap_bonus: 100        # Increases max troop capacity by 100
+
+Farms:
+  description: "Increases population growth rate."
+  cost: 100
+  build_time: 3
+  population_growth_bonus: 1  # Adds +1 to population gained per tick
+
+Houses:
+  description: "Increases the max population."
+  cost: 100
+  build_time: 3
+  max_population_bonus: 50    # Increases city max population by 50
+
+Forts:
+  description: "Increases the attack power of your attacking troops."
+  cost: 400
+  build_time: 15        # ticks
+  attack_bonus_per_level: 0.05   # +5% attack per level
+
+Academys:
+  cost: 400
+  build_time: 8
+  spy_success_bonus: 0.05  # +5% Increase chance of success.
+  description: "Improves espionage training, increasing spy success rate."
+
+Watchtowers:
+  cost: 300
+  build_time: 6
+  spy_defense_bonus: 0.05  # -5% Reduce chance of  success
+  description: "Improves counter-intelligence, reducing enemy spy success rate."
+
+Granary:
+  description: Stores and distributes food, generating food resources each tick.
+  cost: 40
+  build_time: 2
+  food_per_tick: 2
+
+Lodge:
+  description: A simple woodworking structure where settlers gather lumber each tick.
+  cost: 80
+  build_time: 3
+  wood_per_tick: 3
+
+Quarry:
+  description: Extracts rough stone from nearby formations for construction.
+  cost: 100
+  build_time: 4
+  stone_per_tick: 2
+
+Mine:
+  description: A small shaft or pit where early miners collect copper ore.
+  cost: 150
+  build_time: 5
+  copper_per_tick: 1
+
+Market:
+  description: Central hub for trade and barter, generating gold through commerce.
+  cost: 200
+  build_time: 5
+  gold_per_tick: 1

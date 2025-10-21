@@ -1,0 +1,153 @@
+# === CitySim Configuration ===
+# This file controls all core simulation and combat balance parameters.
+# YAML supports comments (#) and is human-friendly — edit safely without breaking syntax.
+
+# === General Settings ===
+tick_interval: 1                    # Game tick interval in minutes
+npc_count: 6                        # Number of NPCs to spawn in the world
+db_path: city_sim.db                # SQLite database path
+
+# === Troop Settings ===
+troop_attack_power: 2               # Base attack power per troop
+troop_defense_power: 1              # Base defense power per troop
+starting_troops: 50                 # Troops given to new players
+training_time: 5                    # Minutes required to train new troops
+attack_base_time: 8                 # Base time (minutes) for attacks to arrive
+
+# === Telnet Server Settings ===
+telnet_port: 8023                   # Telnet port to listen on
+max_connections_per_ip: 4           # Prevent one IP from hogging the server
+max_total_connections: 100          # Absolute maximum connections allowed
+
+# === Logging ===
+logging:
+  enabled: true
+  level: "info"  # 'info' or "debug"
+
+achievement_logging:
+  enabled: true
+
+# === Population and Food Upkeep ===
+food_upkeep_per_person: 0.05    # Food consumed per person each tick
+starvation_loss_rate: 0.1       # Percent of population lost when starving
+#granary_food_efficiency: 0.05   # Optional: 5% less food consumption per Granary level
+
+
+# === Player Starting Conditions ===
+starting_resources: 100
+starting_population: 50
+population_growth_rate: 1           # Population gained per tick (base rate)
+
+# === Base City Stats ===
+base_stats:
+  max_troops: 100
+  max_population: 100
+  defense_bonus: 1.0                # Multiplier applied to defending troops
+  defense_attack_bonus: 0.0         # Multiplier applied to defending troops' counterattack
+  attack_bonus: 0.0                 # Multiplier applied to attacking troops
+
+# === Combat Settings ===
+combat_random_factor: 0.1           # Adds ±10% variability to combat rolls (0.1 = ±10%)
+defense_attack_weight: 0.25         # Portion of defense_attack_buff that counts toward total defense
+casualty_base: 0.4                  # Minimum casualty ratio (40% baseline losses for losing side)
+casualty_variation: 0.3             # Extra casualties added based on how decisive the victory is
+loot_min_fraction: 0.10             # Minimum fraction of defender's resources looted on victory
+loot_max_fraction: 0.25             # Maximum fraction of defender's resources looted on victory
+
+# --- Resource Gain Settings ---
+resource_gain:
+  base_per_pop: 0.5           # Each citizen produces this many resources per tick
+  farm_bonus_per_level: 0.05  # Additional resources per tick per farm level
+  global_multiplier: 1.0      # Global modifier for tuning (e.g. events or difficulty)
+
+# --- NPC AI Settings ---
+npc_ai:
+  logging:
+    enabled: true              # Master toggle for all AI logs
+    level: "info"              # info | debug | none
+    filter_mode: "player_only" # all | war_only | player_only
+  espionage_logging: true       # (kept for backward compatibility)
+  espionage_log_mode: "war_only"
+
+  # Base rate of personality stabilization (decay)
+  decay_rate: 0.01   # traits move 1% per tick toward base profile
+  # Skip personality decay for NPCs inactive for longer than this (in minutes)
+  decay_inactive_skip_minutes: 30
+
+  # Resource threshold below which NPCs feel "poor"
+  low_resource_threshold: 300
+
+  # Trait change magnitudes per event
+  trait_change:
+    win_war: 0.05           # Makes NPC more aggressive, less peaceful
+    lose_war: 0.05          # Makes NPC more peaceful, less aggressive
+    low_resources: 0.05     # Makes NPC more focused on building/economy, less on attacking
+    attacked: 0.03          # Slightly increases aggression (retaliation) and lowers peace chance
+
+# --------------------------------------------------------------------------
+# Prestige System Configuration
+# --------------------------------------------------------------------------
+# Prestige represents a player's overall achievement score.
+# It is recalculated periodically based on weighted factors.
+# Adjust these weights to tune the importance of each category.
+# --------------------------------------------------------------------------
+prestige_weights:
+  # Points awarded per battle won.
+  battles_won: 10
+  # Multiplier for total resources owned.
+  # Example: 1000 resources * 0.01 = 10 prestige points.
+  resources_gained: 0.01
+  # Multiplier for total population.
+  # Example: 200 population * 0.05 = 10 prestige points.
+  population: 0.05
+  # Points per building owned.
+  # Example: 8 buildings * 2 = 16 prestige points.
+  buildings: 2
+  # Bonus points for remaining at peace (no active wars).
+  peace_bonus: 10
+
+# --------------------------------------------------------------------------
+# History & Ranking Behavior
+# --------------------------------------------------------------------------
+# How often prestige is recalculated (in ticks).
+# The world loop should call ranking.update_all_prestige() at this interval.
+prestige_update_interval: 10
+# --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# Espionage Configuration
+# --------------------------------------------------------------------------
+# Defines the behavior, cost, and timing of spy missions.
+# --------------------------------------------------------------------------
+
+espionage:
+  # Spy Training
+  train_time: 10                # ticks to complete spy training
+  train_gold_cost: 50           # gold cost per spy
+  train_resource_costs:         # material costs per spy
+    food: 5
+    copper: 3
+
+  # Spy Missions
+  mission_gold_cost:
+    scout: 25
+    steal: 50
+    sabotage: 75
+
+  mission_resource_costs:
+    scout: {}                   # no extra cost
+    steal:
+      copper: 5
+    sabotage:
+      stone: 10
+
+  # Mission Rewards and Effects
+  reward:
+    steal_percent: 0.1          # percent of target resource stolen
+    sabotage_building_damage: 1 # building levels destroyed on success
+
+  # Mission Durations (ticks)
+  duration:
+    scout: 5
+    steal: 6
+    sabotage: 8

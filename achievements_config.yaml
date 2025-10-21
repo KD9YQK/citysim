@@ -1,0 +1,36 @@
+# =========================================
+# Achievements Configuration
+# =========================================
+# Defines the milestone thresholds for wealth, population,
+# prestige, and espionage-based achievements.
+#
+# The `process_achievements()` function in achievements.py
+# reads these values each tick to determine whether a player
+# qualifies for a new title.
+#
+# Achievements are cumulative: if a player meets multiple
+# thresholds in one tick, all are granted in order.
+# =========================================
+
+wealth:
+  # Total resource + gold value, calculated via get_total_wealth()
+  settler: 5000          # Entry-level wealth milestone
+  coin_master: 25000     # Mid-tier wealth
+  prince: 100000         # High-tier economic mastery
+
+population:
+  # Total population milestones
+  city: 500              # First major settlement
+  metropolis: 2000       # Large city milestone
+  civilization: 5000     # Great civilization-scale population
+
+prestige:
+  # Prestige score milestones (see ranking.py)
+  leader: 500            # Local influence
+  renowned: 2000         # Regional fame
+  legend: 10000          # Legendary status
+
+espionage:
+  # Successful spy missions completed
+  operative: 5           # Early espionage success
+  master: 20             # Accomplished spymaster

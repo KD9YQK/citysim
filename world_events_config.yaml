@@ -1,0 +1,54 @@
+# =========================================
+# world_events_config.yaml
+# Configuration for random global trade and market events
+# =========================================
+
+# --- Global Event Settings ---
+enabled: true                       # Enable or disable world events system
+chance_per_tick: 0.05               # 5% chance per tick to spawn a new event
+max_active_events: 3                # Limit concurrent events to avoid chaos
+default_duration_ticks: 5           # Default number of ticks if not specified
+
+# --- Event Definitions ---
+# Each event defines its economic effect, duration, and description.
+# Supported types:
+#   - market: modifies market price for a resource
+#   - production: affects production rates for a resource
+#   - population: affects population growth or decline
+#   - food: affects consumption or food price directly
+
+events:
+  harvest_festival:
+    type: market
+    resource: food
+    modifier: -0.3                  # Decrease food price by 30%
+    duration: 5
+    message: "A bountiful harvest lowers food prices!"
+
+  mine_collapse:
+    type: production
+    resource: copper
+    modifier: -0.5                  # Reduce copper production by 50%
+    duration: 8
+    message: "A mine collapse disrupts copper extraction!"
+
+  merchant_boom:
+    type: market
+    resource: all
+    modifier: +0.2                  # Increase all prices by 20%
+    duration: 3
+    message: "A surge in merchant demand raises all market prices!"
+
+  famine:
+    type: food
+    resource: food
+    modifier: +0.6                  # Increase food price by 60%
+    duration: 4
+    message: "A famine sweeps the land, food becomes scarce!"
+
+  peace_dividend:
+    type: market
+    resource: stone
+    modifier: -0.2                  # Reduce stone prices (peace lowers fort demand)
+    duration: 6
+    message: "An era of peace reduces demand for fortifications."
