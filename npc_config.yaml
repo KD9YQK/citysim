@@ -1,70 +1,53 @@
-# =========================================
+# ============================================================================
 # npc_config.yaml
-# Configuration for NPC AI & Economy
-# =========================================
+# ----------------------------------------------------------------------------
+# Configuration file for NPC AI behavioral tuning and personality adaptation.
+# ============================================================================
 
-# --- General NPC Settings ---
-npc_count: 10                     # Total NPCs to spawn at world init
-low_resource_threshold: 100        # Trigger for low resource events
+npc_ai:
 
-# --- Trait System ---
-trait_change:
-  win_war: 0.05                    # Increase aggression after victory
-  lose_war: 0.05                   # Increase peace chance after loss
-  low_resources: 0.05              # Boost build rate when struggling
-  attacked: 0.03                   # Increase aggression when attacked
-decay_rate: 0.01                   # Gradual normalization per tick
-decay_inactive_skip_minutes: 30    # Skip decay for idle NPCs
-# Defines how economic outcomes affect NPC behavior.
-economic_triggers:
-  successful_trade:
-    build_chance: 0.02
-    peace_chance: 0.01
-  failed_trade:
-    build_chance: -0.02
-    attack_chance: -0.01
-  resource_surplus:
-    attack_chance: 0.02
-    build_chance: 0.01
-  resource_shortage:
-    build_chance: 0.02
-    peace_chance: 0.02
-  successful_build:
-    build_chance: 0.01
-    peace_chance: 0.01
-  economic_boom:
-    attack_chance: 0.03
-  economic_crash:
-    peace_chance: 0.03
+  # ───────────────────────────────────────────────────────────────────────────
+  # Resource Sensitivity
+  # ---------------------------------------------------------------------------
+  # When an NPC’s total resources drop below this threshold, they evolve
+  # their traits toward survival-focused behavior.
+  # ───────────────────────────────────────────────────────────────────────────
+  low_resource_threshold: 100
 
 
-# --- Economic Planning ---
-economy:
-  planning_interval_ticks: 5       # How often NPCs plan new buildings
-  min_gold_reserve: 200            # Gold reserve NPCs never spend below
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trait Adaptation
+  # ---------------------------------------------------------------------------
+  # Defines how personality traits shift following specific events.
+  # Each key maps to a multiplier applied to trait weights.
+  # ───────────────────────────────────────────────────────────────────────────
+  trait_change:
+    win_war: 0.05
+    lose_war: 0.05
+    low_resources: 0.05
+    attacked: 0.05
 
-# --- Trade Behavior ---
-trade:
-  trade_check_interval_ticks: 3    # Frequency of trade checks (in ticks)
-  base_trade_volume: 100           # Standard trade volume per transaction
-  price_buy_bias: 0.8              # Buy when price < 80% of base price
-  price_sell_bias: 1.2             # Sell when price > 120% of base price
 
-  # --- Personality-Specific Trade Profiles ---
-  personalities:
-    Economist:
-      trade_frequency: 0.6         # 60% chance to trade each check
-      buy_bias: 1.2                # More willing to buy high
-      sell_bias: 0.8               # Sells less often
-    Opportunist:
-      trade_frequency: 0.4
-      buy_bias: 1.0
-      sell_bias: 1.0
-    Defender:
-      trade_frequency: 0.3
-      buy_bias: 0.8
-      sell_bias: 1.1
-    Aggressor:
-      trade_frequency: 0.2
-      buy_bias: 0.5                # Rarely buys
-      sell_bias: 1.3               # Sells aggressively when prices high
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trait Decay
+  # ---------------------------------------------------------------------------
+  # NPC traits gradually return toward their base personality profile.
+  # decay_rate: rate per tick
+  # decay_inactive_skip_minutes: skip decay if NPC inactive too long
+  # ───────────────────────────────────────────────────────────────────────────
+  decay_rate: 0.01
+  decay_inactive_skip_minutes: 30
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Espionage Behavior
+  # ---------------------------------------------------------------------------
+  # Controls AI espionage action logging and visibility.
+  #   - espionage_logging: Enable/disable espionage logging entirely
+  #   - espionage_log_mode:
+  #       all         – log all espionage actions
+  #       war_only    – log only actions during active wars
+  #       player_only – log only when target is a human player
+  # ───────────────────────────────────────────────────────────────────────────
+  espionage_logging: true
+  espionage_log_mode: "war_only"

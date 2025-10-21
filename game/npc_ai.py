@@ -169,7 +169,8 @@ class NPCAI:
     }
 
     def __init__(self):
-        self.cfg = load_config("config.yaml")
+        self.cfg = load_config("npc_config.yaml")["npc_ai"]
+        self.global_cfg = load_config("config.yaml")
         self.bcfg = load_config("buildings_config.yaml")
         self.db = Database.instance()
 
@@ -375,7 +376,7 @@ class NPCAI:
 
     def run(self):
         """Execute one full AI pass for all NPCs."""
-        cfg = load_config("config.yaml")
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         npcs = get_all_npcs()
         if not npcs:
             return
@@ -383,7 +384,7 @@ class NPCAI:
 
         for npc in npcs:
             self.decay_traits(npc['name'])
-            low_threshold = cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
+            low_threshold = npc_cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
             if sum(get_resources(npc["id"]).values()) < low_threshold:
                 self.evolve_traits(npc["name"], "low_resources")
                 acted = True
@@ -443,7 +444,7 @@ class NPCAI:
     def evolve_traits(self, npc_name, event_type):
         """Adjust an NPC's personality traits based on recent events."""
         cfg = load_config("config.yaml")
-        npc_cfg = cfg.get("npc_ai", {})
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         change_cfg = npc_cfg.get("trait_change", {})
 
         delta = change_cfg.get(event_type, 0.05)  # default if not defined
@@ -476,7 +477,7 @@ class NPCAI:
     def decay_traits(self, npc_name):
         """Gradually restore an NPC's traits toward its base personality profile."""
         cfg = load_config("config.yaml")
-        npc_cfg = cfg.get("npc_ai", {})
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         decay_rate = npc_cfg.get("decay_rate", 0.01)
 
         # Optional: Skip if NPC inactive too long
@@ -644,9 +645,8 @@ class NPCAI:
         db = Database.instance()
         name = npc["name"]
 
-        cfg = self.cfg.get("npc_ai", {})
-        logging_enabled = cfg.get("espionage_logging", False)
-        log_mode = cfg.get("espionage_log_mode", "all")
+        logging_enabled = self.cfg.get("espionage_logging", False)
+        log_mode = self.cfg.get("espionage_log_mode", "all")
 
         # Skip if no spies available
         data = db.execute("SELECT spies FROM players WHERE name=?", (name,), fetchone=True)
