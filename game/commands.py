@@ -92,6 +92,18 @@ async def handle_command(player_name, line):
             "\r\nTip: You can use either the full name or any alias shown above.\r\n"
         )
 
+    if cmd in ["market_buy", "mb"]:
+        from game.market_base import buy_from_market
+        buy_from_market(player_name, parts[1], parts[2])
+
+    if cmd in ["market_sell", "ms"]:
+        from game.market_base import sell_to_market
+        sell_to_market(player_name, parts[1], parts[2])
+
+    if cmd in ["market_list", "m", "ml"]:
+        from game.market_base import get_market_summary
+        return get_market_summary()
+
     if cmd in ["achievements", "ach"]:
         from game.achievements import show_achievements
         return show_achievements(player_name)

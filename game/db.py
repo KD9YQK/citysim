@@ -146,6 +146,10 @@ class Database:
                 amount REAL NOT NULL DEFAULT 0,
                 PRIMARY KEY (player_id, resource_name)
             );
+            CREATE TABLE IF NOT EXISTS global_market (
+                resource_name TEXT PRIMARY KEY,
+                supply REAL NOT NULL
+            );
             """)
             cur.close()
 

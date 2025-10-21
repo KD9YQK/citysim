@@ -37,5 +37,4 @@ resources:
 market:
   price_floor: 0.5          # Minimum allowed price for any resource
   price_ceiling: 10.0        # Maximum allowed price for any resource
-  drift_variance: 0.2        # Random ±20% variation applied each tick
-  adjustment_factor: 0.1     # How strongly price responds to supply levels
+  volitility: .25
