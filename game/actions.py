@@ -5,6 +5,7 @@ from .events import send_message
 from .models import get_player_by_name, adjust_troops
 from .utils import load_config, ticks_passed, ticks_to_minutes
 from .logger import game_log
+from .resources_base import get_resources, consume_resources, add_resources
 
 
 # ----------------------------------------------------------------------
@@ -113,15 +114,33 @@ def resolve_battle(attacker_name, defender_name, attacking_troops, attack_id):
         adjust_troops(defender_name, -def_loss)
         adjust_troops(attacker_name, attacking_troops - atk_loss)
 
-        defender_resources = max(0, df["resources"])
-        loot_fraction = random.uniform(loot_min, loot_max)
-        loot = min(defender_resources, int(defender_resources * loot_fraction))
-        db.execute("UPDATE players SET resources = resources - ? WHERE name=?", (loot, defender_name))
-        db.execute("UPDATE players SET resources = resources + ? WHERE name=?", (loot, attacker_name))
+        defender_id = df["id"]
+        attacker_id = atk["id"]
 
-        send_message(attacker_name, f"You won your attack on {defender_name}! Looted {loot} resources.")
-        send_message(defender_name, f"{attacker_name} defeated your forces and looted {loot} resources.")
-        game_log("WAR", f"{attacker_name} won vs {defender_name}, +{loot} resources.")
+        defender_res = get_resources(defender_id)
+        loot_fraction = random.uniform(loot_min, loot_max)
+
+        # loot gold if present, else first available resource
+        loot_resource = "gold" if "gold" in defender_res else next(iter(defender_res))
+        loot_amount = int(defender_res.get(loot_resource, 0) * loot_fraction)
+
+        if loot_amount > 0:
+            consume_resources(defender_id, {loot_resource: loot_amount})
+            add_resources(attacker_id, {loot_resource: loot_amount})
+
+        # Use loot_amount and loot_resource in messages and logs (not undefined 'loot')
+        if loot_amount > 0:
+            send_message(attacker_name,
+                         f"You won your attack on {defender_name}! Looted {loot_amount} {loot_resource}.")
+            send_message(defender_name,
+                         f"{attacker_name} defeated your forces and looted {loot_amount} {loot_resource}.")
+            game_log("WAR", f"{attacker_name} won vs {defender_name}, +{loot_amount} {loot_resource}.")
+        else:
+            # No loot was available
+            send_message(attacker_name, f"You won your attack on {defender_name}! But there was no loot to take.")
+            send_message(defender_name, f"{attacker_name} defeated your forces but found no loot.")
+            game_log("WAR", f"{attacker_name} won vs {defender_name}, but no loot was taken.")
+
         db.execute("UPDATE attacks SET status='complete', result='win' WHERE id=?", (attack_id,))
 
     # --- Defender Wins ---
@@ -134,7 +153,7 @@ def resolve_battle(attacker_name, defender_name, attacking_troops, attack_id):
         send_message(attacker_name, f"Your attack on {defender_name} failed. You lost {atk_loss} troops.")
         send_message(defender_name, f"You defended successfully against {attacker_name}! They lost {atk_loss} troops.")
         game_log("WAR", f"{defender_name} defended successfully vs {attacker_name}.")
-        db.execute("UPDATE attacks SET status='complete', result='win' WHERE id=?", (attack_id,))
+        db.execute("UPDATE attacks SET status='complete', result='lose' WHERE id=?", (attack_id,))
 
 
 # ----------------------------------------------------------------------

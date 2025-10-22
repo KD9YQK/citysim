@@ -1,30 +1,46 @@
 from .utils import load_config
 
 color_map = {
-    # --- Core Game Systems ---
-    "DB": "\033[95m",  # magenta - database and persistence
-    "WORLD": "\033[94m",  # blue - world ticks, population, global updates
-    "BUILD": "\033[93m",  # yellow - building and construction
-    "TRAIN": "\033[92m",  # green - troop or spy training
-    "WAR": "\033[91m",  # red - combat and diplomacy
-    "ECONOMY": "\033[96m",  # cyan - resource production and flow
+    # ==========================================================
+    # --- CORE GAME SYSTEMS (cool-to-warm spectrum) ---
+    # ==========================================================
+    "DB": "\033[95m",            # magenta - persistence, saves
+    "WORLD": "\033[94m",         # blue - world tick, time, population
+    "BUILD": "\033[93m",         # yellow - construction and upgrades
+    "TRAIN": "\033[92m",         # green - troop/spy training
+    "WAR": "\033[91m",           # red - combat and diplomacy
 
-    # --- Narrative / Flavor ---
-    "EVENT": "\033[90m",  # bright gray - general events
-    "ACHIEVEMENT": "\033[33m",  # gold - milestone achievements
-    "LORE": "\033[36m",  # teal - lore or flavor text
+    # --- ECONOMY & MARKET SYSTEMS ---
+    "ECONOMY": "\033[36m",       # cyan/teal - resource production
+    "ECONOMY_DEBUG": "\033[36m", # cyan/teal - debug output
+    "MARKET": "\033[96m",        # light cyan - trade and exchange
+    "MARKET_DEBUG": "\033[96m",  # light cyan - trade debug
 
-    # --- NPC / AI Specific ---
-    "SYSTEM": "\033[97m",  # bright white - AI/system actions or setup
-    "ESPIONAGE": "\033[35m",  # purple - spy missions, intel ops
+    # ==========================================================
+    # --- NARRATIVE / FLAVOR (earth tones & neutral contrast) ---
+    # ==========================================================
+    "EVENT": "\033[90m",         # gray - general events
+    "ACHIEVEMENT": "\033[33m",   # gold - milestones, rewards
+    "LORE": "\033[38;5;37m",     # teal-blue - world flavor text
+
+    # ==========================================================
+    # --- NPC / AI SPECIFIC (distinct & thematic colors) ---
+    # ==========================================================
+    "SYSTEM": "\033[97m",        # bright white - AI/system actions
+    "ESPIONAGE": "\033[35m",     # purple - covert operations
     "TRAITS": "\033[38;5;208m",  # orange - AI personality evolution
-    "BUILD_AI": "\033[93m",  # alias safety if AI logs BUILD differently
-    "TRAIN_AI": "\033[92m",  # alias safety for AI training
-    "WAR_AI": "\033[91m",  # alias safety for AI war
 
-    # --- Reset ---
-    "END": "\033[0m"  # reset
+    # --- Alias Safety (do not touch colors) ---
+    "BUILD_AI": "\033[93m",      # alias safety
+    "TRAIN_AI": "\033[92m",      # alias safety
+    "WAR_AI": "\033[91m",        # alias safety
+
+    # ==========================================================
+    # --- RESET / END ---
+    # ==========================================================
+    "END": "\033[0m"             # reset
 }
+
 
 
 def ai_log(category: str, message: str, context=None, level="info", war=False, target_is_player=False):

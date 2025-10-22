@@ -5,11 +5,15 @@ from .models import list_players, update_population, gain_resources_from_populat
 from .actions import process_training_jobs, process_building_jobs, resolve_battle
 from .npc_ai import NPCAI
 from .utils import load_config, ticks_passed
-from .ranking import update_all_prestige
+from .ranking import update_all_prestige, update_trade_leaderboard, update_economy_leaderboard
 from .espionage import process_espionage_jobs, process_spy_training_jobs
 from .logger import game_log
 from .achievements import process_achievements
 from .random_events import process_random_events
+from .upkeep_system import process_all_upkeep
+from .market_base import update_trade_prestige
+from .npc_trait_feedback import print_npc_traits
+from .world_events import WorldEvents
 
 
 def process_attacks():
@@ -38,11 +42,16 @@ async def main_loop():
     npc.initialize()
     game_log("WORLD", f"Tick interval: {tick_minutes} minute(s)")
     prestige_tick = 0
+    trait_feedback_tick = 0
+
+    events = WorldEvents()
+
     while True:
         cfg = load_config("config.yaml")
         tick_minutes = cfg.get("tick_interval", 1)
         tick_seconds = tick_minutes * 60
         try:
+            events.process_world_events()
             process_training_jobs()
             process_building_jobs()
             recalculate_all_player_stats()
@@ -52,8 +61,12 @@ async def main_loop():
                 update_population(p["name"])
                 gain_resources_from_population(p["name"])
 
+            process_all_upkeep()
             process_espionage_jobs()
             process_spy_training_jobs()
+
+            update_trade_prestige()
+            game_log("PRESTIGE", "Global trade prestige recalculated.", None)
             prestige_tick += 1
             if prestige_tick >= 10:
                 update_all_prestige()
@@ -63,6 +76,14 @@ async def main_loop():
             process_attacks()
             process_random_events()
             npc.run()
+
+            trait_feedback_tick += 1
+            if trait_feedback_tick >= 15:
+                print_npc_traits(limit=10)
+                trait_feedback_tick = 0
+
+            update_trade_leaderboard()
+            update_economy_leaderboard()
 
         except Exception:
             traceback.print_exc()

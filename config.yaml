@@ -60,30 +60,6 @@ resource_gain:
   farm_bonus_per_level: 0.05  # Additional resources per tick per farm level
   global_multiplier: 1.0      # Global modifier for tuning (e.g. events or difficulty)
 
-# --- NPC AI Settings ---
-npc_ai:
-  logging:
-    enabled: true              # Master toggle for all AI logs
-    level: "info"              # info | debug | none
-    filter_mode: "player_only" # all | war_only | player_only
-  espionage_logging: true       # (kept for backward compatibility)
-  espionage_log_mode: "war_only"
-
-  # Base rate of personality stabilization (decay)
-  decay_rate: 0.01   # traits move 1% per tick toward base profile
-  # Skip personality decay for NPCs inactive for longer than this (in minutes)
-  decay_inactive_skip_minutes: 30
-
-  # Resource threshold below which NPCs feel "poor"
-  low_resource_threshold: 300
-
-  # Trait change magnitudes per event
-  trait_change:
-    win_war: 0.05           # Makes NPC more aggressive, less peaceful
-    lose_war: 0.05          # Makes NPC more peaceful, less aggressive
-    low_resources: 0.05     # Makes NPC more focused on building/economy, less on attacking
-    attacked: 0.03          # Slightly increases aggression (retaliation) and lowers peace chance
-
 # --------------------------------------------------------------------------
 # Prestige System Configuration
 # --------------------------------------------------------------------------

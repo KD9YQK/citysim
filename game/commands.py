@@ -10,6 +10,7 @@ from .economy import calculate_resources_per_tick
 from .ranking import display_rankings, display_prestige_history
 from .espionage import schedule_espionage, queue_spy_training
 from .lore import get_random_lore
+from .resources_base import get_resources
 
 
 def ensure_player(name):
@@ -90,6 +91,18 @@ async def handle_command(player_name, line):
             "  lore                        - Display a random piece of world lore\r\n"
             "\r\nTip: You can use either the full name or any alias shown above.\r\n"
         )
+
+    if cmd in ["market_buy", "mb"]:
+        from game.market_base import buy_from_market
+        buy_from_market(player_name, parts[1], parts[2])
+
+    if cmd in ["market_sell", "ms"]:
+        from game.market_base import sell_to_market
+        sell_to_market(player_name, parts[1], parts[2])
+
+    if cmd in ["market_list", "m", "ml"]:
+        from game.market_base import get_market_summary
+        return get_market_summary()
 
     if cmd in ["achievements", "ach"]:
         from game.achievements import show_achievements
@@ -428,10 +441,13 @@ def command_status(player_name):
     garrisoned = max(player["troops"], 0)
     deployed = total_deployed
 
+    res_dict = get_resources(player["id"])
+    res_str = " | ".join(f"{k.capitalize()} {int(v)}" for k, v in res_dict.items())
+
     # --- Column layout ---
     left = [
         f"City: {player['name']}",
-        f"Resources: {player['resources']}",
+        f"Resources:\r\n  {res_str}",
         f"Population: {player['population']}/{player['max_population']}",
         f"Troops: {garrisoned + total_deployed}/{player['max_troops']}",
         f"  Garrisoned: {garrisoned}",

@@ -37,7 +37,6 @@ class Database:
                 is_npc INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 troops INTEGER DEFAULT 0,
-                resources INTEGER DEFAULT 0,
                 population INTEGER DEFAULT 0,
                 max_population INTEGER DEFAULT 100,
                 max_troops INTEGER DEFAULT 500,
@@ -51,7 +50,9 @@ class Database:
                 attack_bonus REAL DEFAULT 1.0,
                 prestige INTEGER DEFAULT 0,
                 last_prestige_update REAL DEFAULT 0,
-                spies INTEGER DEFAULT 0
+                spies INTEGER DEFAULT 0,
+                trait_greed REAL DEFAULT 1.0,
+                trait_risk REAL DEFAULT 1.0
             );
 
             CREATE TABLE IF NOT EXISTS wars (
@@ -140,6 +141,41 @@ class Database:
                 amount INTEGER NOT NULL,
                 start_time REAL NOT NULL,
                 processed INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS player_resources (
+                player_id INTEGER NOT NULL,
+                resource_name TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                PRIMARY KEY (player_id, resource_name)
+            );
+            CREATE TABLE IF NOT EXISTS global_market (
+                resource_name TEXT PRIMARY KEY,
+                supply REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS trade_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                npc_name TEXT NOT NULL,
+                resource TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                price REAL NOT NULL,
+                total_value REAL NOT NULL,
+                profit REAL NOT NULL,
+                action TEXT CHECK(action IN ('buy','sell')) NOT NULL,
+                timestamp REAL DEFAULT (strftime('%s','now'))
+            );
+            CREATE TABLE IF NOT EXISTS trade_summary (
+                npc_name TEXT PRIMARY KEY,
+                total_trades INTEGER DEFAULT 0,
+                total_profit REAL DEFAULT 0,
+                avg_profit REAL DEFAULT 0,
+                best_trade REAL DEFAULT 0,
+                worst_trade REAL DEFAULT 0,
+                last_update REAL DEFAULT (strftime('%s','now'))
+            );
+            CREATE TABLE IF NOT EXISTS npc_trade_stats (
+                npc_name TEXT PRIMARY KEY,
+                total_profit REAL DEFAULT 0,
+                trades INTEGER DEFAULT 0
             );
             """)
             cur.close()

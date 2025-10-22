@@ -1,70 +1,241 @@
-# =========================================
+# ============================================================================
 # npc_config.yaml
-# Configuration for NPC AI & Economy
-# =========================================
+# ----------------------------------------------------------------------------
+# Configuration file for NPC AI behavioral tuning and personality adaptation.
+# ============================================================================
 
-# --- General NPC Settings ---
-npc_count: 10                     # Total NPCs to spawn at world init
-low_resource_threshold: 100        # Trigger for low resource events
+npc_ai:
 
-# --- Trait System ---
-trait_change:
-  win_war: 0.05                    # Increase aggression after victory
-  lose_war: 0.05                   # Increase peace chance after loss
-  low_resources: 0.05              # Boost build rate when struggling
-  attacked: 0.03                   # Increase aggression when attacked
-decay_rate: 0.01                   # Gradual normalization per tick
-decay_inactive_skip_minutes: 30    # Skip decay for idle NPCs
-# Defines how economic outcomes affect NPC behavior.
-economic_triggers:
-  successful_trade:
-    build_chance: 0.02
-    peace_chance: 0.01
-  failed_trade:
-    build_chance: -0.02
-    attack_chance: -0.01
-  resource_surplus:
-    attack_chance: 0.02
-    build_chance: 0.01
-  resource_shortage:
-    build_chance: 0.02
-    peace_chance: 0.02
-  successful_build:
-    build_chance: 0.01
-    peace_chance: 0.01
-  economic_boom:
-    attack_chance: 0.03
-  economic_crash:
-    peace_chance: 0.03
+  # ───────────────────────────────────────────────────────────────────────────
+  # Resource Sensitivity
+  # ---------------------------------------------------------------------------
+  # When an NPC’s total resources drop below this threshold, they evolve
+  # their traits toward survival-focused behavior.
+  # ───────────────────────────────────────────────────────────────────────────
+  low_resource_threshold: 100
 
 
-# --- Economic Planning ---
-economy:
-  planning_interval_ticks: 5       # How often NPCs plan new buildings
-  min_gold_reserve: 200            # Gold reserve NPCs never spend below
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trait Adaptation
+  # ---------------------------------------------------------------------------
+  # Defines how personality traits shift following specific events.
+  # Each key maps to a multiplier applied to trait weights.
+  # ───────────────────────────────────────────────────────────────────────────
+  trait_change:
+    win_war: 0.05
+    lose_war: 0.05
+    low_resources: 0.05
+    attacked: 0.05
 
-# --- Trade Behavior ---
-trade:
-  trade_check_interval_ticks: 3    # Frequency of trade checks (in ticks)
-  base_trade_volume: 100           # Standard trade volume per transaction
-  price_buy_bias: 0.8              # Buy when price < 80% of base price
-  price_sell_bias: 1.2             # Sell when price > 120% of base price
+  # --- Trait Evolution Control ---
+  trait_evolution:
+    enabled: true
+    # How much a single event nudges a trait toward/away from its base (0–1)
+    evolution_rate: 0.03
+    # Chance each tick to evaluate and apply an evolution update
+    evolution_tick_chance: 0.15
 
-  # --- Personality-Specific Trade Profiles ---
-  personalities:
-    Economist:
-      trade_frequency: 0.6         # 60% chance to trade each check
-      buy_bias: 1.2                # More willing to buy high
-      sell_bias: 0.8               # Sells less often
-    Opportunist:
-      trade_frequency: 0.4
-      buy_bias: 1.0
-      sell_bias: 1.0
-    Defender:
-      trade_frequency: 0.3
-      buy_bias: 0.8
-      sell_bias: 1.1
-    Aggressor:
-      trade_frequency: 0.2
-      buy_bias: 0.5                # Rarely buys
-      sell_bias: 1.3               # Sells aggressively when prices high
+    # Event weight multipliers (tuned to personality feedback)
+    events:
+      trade_profit: 0.6     # Success in market increases build_chance
+      trade_loss: -0.4     # Loss in market lowers build_chance
+      war_win: 0.5     # Success in combat increases attack_chance
+      war_loss: -0.5     # Defeat lowers attack_chance
+      long_peace: 0.2      # Peaceful stretch increases peace_chance slightly
+      low_wealth: -0.3      # Poverty encourages aggression
+      high_wealth: 0.3      # Prosperity encourages peace/building
+
+    # Clamp range for traits to prevent runaway personalities
+    clamp_min: 0.05
+    clamp_max: 0.95
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trait Decay
+  # ---------------------------------------------------------------------------
+  # NPC traits gradually return toward their base personality profile.
+  # decay_rate: rate per tick
+  # decay_inactive_skip_minutes: skip decay if NPC inactive too long
+  # ───────────────────────────────────────────────────────────────────────────
+  decay_rate: 0.01
+  decay_inactive_skip_minutes: 30
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Espionage Behavior
+  # ---------------------------------------------------------------------------
+  # Controls AI espionage action logging and visibility.
+  #   - espionage_logging: Enable/disable espionage logging entirely
+  #   - espionage_log_mode:
+  #       all         – log all espionage actions
+  #       war_only    – log only actions during active wars
+  #       player_only – log only when target is a human player
+  # ───────────────────────────────────────────────────────────────────────────
+  espionage_logging: true
+  espionage_log_mode: "war_only"
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Economic Planning System
+  # ---------------------------------------------------------------------------
+  # These values define when and how NPCs attempt to stabilize their economy
+  # using the global market (Step 5: NPC Economic Planning).
+  # NPCs will automatically buy food if starving or sell surplus goods for gold.
+  # Adjust these thresholds to control market participation frequency.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  # Minimum amount of food an NPC should maintain.
+  # If current food < this value, the NPC will attempt to buy food
+  # from the global market (if it has enough gold).
+  low_food_threshold: 50
+
+  # Minimum gold balance considered “stable.”
+  # If gold < this value, the NPC may sell surplus resources (wood, iron, etc.)
+  # to restore liquidity before performing other actions.
+  low_gold_threshold: 100
+
+  # Defines what “surplus” means for resources.
+  # If an NPC has more than this quantity of a non-critical resource,
+  # it may sell up to 25% of that resource to the market for gold.
+  sell_surplus_threshold: 500
+  # ───────────────────────────────────────────────────────────────────────────
+  # Debugging and Diagnostics
+  # ---------------------------------------------------------------------------
+  # Enable detailed economy trace logs for NPC behavior.
+  # When true, every trade attempt, skip, and resource check will be logged.
+  # When false, only successful or critical events are recorded.
+  # ───────────────────────────────────────────────────────────────────────────
+  debug_economy: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Market Behavior Configuration
+  # ---------------------------------------------------------------------------
+  # Controls adaptive NPC trading frequency and behavior variety.
+  # These settings determine how often NPCs attempt speculative trades,
+  # and how strongly personality traits influence their market activity.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  # NPCs will trade no sooner than this many ticks since their last trade.
+  trade_interval_min: 3
+
+  # NPCs will always trade again after this many ticks if possible.
+  trade_interval_max: 8
+
+  # Multipliers that adjust trading aggressiveness by personality type.
+  # Used in Step 7 for linking AI traits to economic decisions.
+  personality_bias:
+    Trader: 1.2      # More likely to trade frequently
+    Cautious: 0.8    # Trades less often
+    Greedy: 1.0      # Normal baseline behavior
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Market Behavior Thresholds
+  # ---------------------------------------------------------------------------
+  # These values determine when NPCs decide to buy or sell based on
+  # resource prices and quantities relative to base market values.
+  # Percentages represent deviation from base prices defined in
+  # resources_config.yaml.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  market_thresholds:
+    buy_below: 0.85     # Buy when price < 85% of base
+    sell_above: 1.20    # Sell when price > 120% of base
+    min_reserve_ratio: 0.20  # Keep at least 20% of each resource (avoid zeroing out)
+    sell_fraction: 0.25  # Sell 25% of surplus when conditions met
+
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Trade History Maintenance
+  # ---------------------------------------------------------------------------
+  # Controls automatic pruning of the trade_history table to manage size.
+  # Records older than retention_days are removed during NPC AI runs.
+  # cleanup_chance determines how often cleanup is triggered each tick.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  trade_history_cleanup:
+    enabled: true
+    retention_days: 7        # Keep one week of trade records
+    cleanup_chance: 0.10     # 10% chance per tick to perform cleanup
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Prestige Scaling
+  # ---------------------------------------------------------------------------
+  # Converts lifetime trade profit into prestige gain.
+  # Example: 0.0025 → every +400 total profit = +1 prestige
+  # ---------------------------------------------------------------------------
+  prestige:
+    trade_profit_multiplier: 0.0025
+
+  prestige_hook:
+    enabled: true
+    weight_per_100_gold: 1.0    # Each +100 lifetime profit = +1 prestige
+    update_interval_days: 1     # (reserved) for future tick timing use
+    leaderboard_limit: 10       # Number of top traders to display per tick
+
+# ───────────────────────────────────────────────────────────────
+# NPC Market Behavior (Step 6)
+# ----------------------------------------------------------------
+# Controls adaptive market actions for NPCs. Each NPC decides when
+# and how to trade based on its personality, recent performance,
+# and the ratio between current and base resource prices.
+# ───────────────────────────────────────────────────────────────
+npc_market:
+
+  # ─────────── Trade Timing ───────────
+  trade_interval_min: 3          # Minimum ticks between trades
+  trade_interval_max: 8          # Maximum ticks between trades
+  # These create variability — faster traders, slower warlords.
+
+  # ─────────── Price Sensitivity ─────
+  buy_below_ratio: 0.85          # Buy when market price < 85% of base price
+  sell_above_ratio: 1.20         # Sell when market price > 120% of base price
+  # Personalities modify these internally (see personality_bias).
+
+  # ─────────── Inventory Management ───
+  min_reserve_ratio: 0.20        # Keep at least 20% of resources before selling
+  sell_fraction: 0.25            # Sell up to 25% of holdings each trade
+
+  # ─────────── Trade Quantity Rules ──
+  min_trade_quantity: 10         # Smallest possible trade
+  max_trade_quantity: 100        # Largest possible trade
+  random_price_variance: 0.10    # Up to ±10% deviation from market price when trading
+  # Adds randomness so NPCs don’t all act identically.
+
+  # ─────────── Personality Multipliers ───────
+  # Used internally to bias threshold behavior:
+  # - Higher = more aggressive trader (acts more often, buys low/sells high)
+  # - Lower = cautious trader (waits longer, less risk)
+  personality_bias:
+    Trader: 1.2
+    Cautious: 0.8
+    Greedy: 1.0
+    Neutral: 1.0
+
+
+# ─────────────────────────────────────────────
+# Economic Trait Feedback (Step 7)
+# ─────────────────────────────────────────────
+# NPCs gradually evolve personality traits based on trade success or failure.
+# Successful traders become bolder (higher greed/risk), while poor performance
+# encourages caution. All modifiers persist in the players table.
+trait_feedback:
+  enabled: true
+
+  # ───── Trade Result Influence ─────
+  # Determines how much greed/risk shifts after each trade.
+  profit_increase_rate: 0.02       # +2% greed/risk after a profitable trade
+  loss_decrease_rate: 0.03         # −3% greed/risk after an unprofitable trade
+  stability_decay: 0.01            # Gradual drift back toward 1.0 baseline per day/tick cycle
+
+  # ───── Prestige Linkage ─────
+  # Converts trade profit/loss into prestige adjustments.
+  prestige_gain_mult: 0.5          # +0.5 prestige per 100 gold profit
+  prestige_loss_mult: 1.0          # −1 prestige per 100 gold loss
+  # Adjust to make prestige react more or less strongly to economics.
+
+  # ───── Value Bounds ─────
+  # Prevents runaway values for trait multipliers.
+  min_trait_value: 0.5
+  max_trait_value: 1.5
+
+  # ───── Logging & Debugging ─────
+  log_trait_changes: true          # Log updates for each NPC trade

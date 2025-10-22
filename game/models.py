@@ -3,8 +3,8 @@ from .events import send_message
 from .utils import load_config, ticks_to_minutes
 import time
 import random
-from .economy import calculate_resources_per_tick
 from .logger import game_log
+from .resources_base import ensure_player_resources, add_resources, consume_resources
 
 db = Database.instance()
 
@@ -30,33 +30,34 @@ def create_player(name, is_npc=False, is_admin=False, personality=None):
     base = cfg.get("base_stats", {})
 
     if not personality and is_npc:
-        # Assign a random AI personality for new NPCs
         personality = random.choice(list(NPCAI.PERSONALITY_PROFILES.keys()))
 
-    # Base stats (capacity and bonuses)
+    # Base stats
     max_troops = int(base.get("max_troops", 500))
     max_pop = int(base.get("max_population", 100))
     def_bonus = float(base.get("defense_bonus", 1.0))
     atk_bonus = float(base.get("defense_attack_bonus", 0.0))
 
-    # Starting values
-    starting_resources = int(cfg.get("starting_resources", 100))
     starting_population = int(cfg.get("starting_population", 50))
     starting_troops = int(cfg.get("starting_troops", 50))
 
     db.execute("""
         INSERT INTO players (
             name, is_npc, is_admin,
-            troops, resources, population,
+            troops, population,
             max_troops, max_population, defense_bonus, defense_attack_bonus,
             personality
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         name, int(is_npc), int(is_admin),
-        starting_troops, starting_resources, starting_population,
+        starting_troops, starting_population,
         max_troops, max_pop, def_bonus, atk_bonus, personality
     ))
+
+    # Initialize per-player resource entries
+    player_id = db.execute("SELECT id FROM players WHERE name=?", (name,), fetchone=True)["id"]
+    ensure_player_resources(player_id)
 
     game_log("DB", f"Created player {name} (NPC={is_npc}, Personality={personality})")
 
@@ -211,9 +212,15 @@ def update_population(player_name):
 
 
 def gain_resources_from_population(player_name):
-    """Add resources based on population size."""
-    gain = calculate_resources_per_tick(player_name)
-    db.execute("UPDATE players SET resources = resources + ? WHERE name=?", (gain, player_name))
+    """Add resources per tick based on population."""
+    player = get_player_by_name(player_name)
+    if not player:
+        return
+
+    pop = player["population"]
+    # Example: convert population into food or gold
+    delta = {"food": pop * 0.1, "gold": pop * 0.05}
+    add_resources(player["id"], delta)
 
 
 def start_training(player_name, amount):
@@ -232,20 +239,19 @@ def start_training(player_name, amount):
     if player["troops"] + amount > max_troops:
         return f"Cannot train {amount} troops. Max allowed is {max_troops}."
 
-    resource_cost_per_troop = int(cfg.get("resource_cost_per_troop", 5))
     population_cost_per_troop = 1
-
-    total_resource_cost = amount * resource_cost_per_troop
     total_pop_cost = amount * population_cost_per_troop
-
-    if player["resources"] < total_resource_cost:
-        return f"Not enough resources. Need {total_resource_cost}, have {player['resources']}."
     if player["population"] < total_pop_cost:
         return f"Not enough population to train {amount} troops."
 
+    resource_cost_per_troop = int(cfg.get("resource_cost_per_troop", 5))
+    total_cost = {"gold": amount * resource_cost_per_troop}
+    if not consume_resources(player["id"], total_cost):
+        return f"Not enough food to train {amount} troops."
+
     db.execute(
-        "UPDATE players SET resources=?, population=? WHERE name=?",
-        (player["resources"] - total_resource_cost, player["population"] - total_pop_cost, player_name)
+        "UPDATE players SET population=? WHERE name=?",
+        (player["population"] - total_pop_cost, player_name)
     )
 
     queue_training_job(player_name, amount)
@@ -269,10 +275,9 @@ def start_building(player_name, building_name):
         return "Invalid building type."
     b = bcfg[building_name]
     cost = b["cost"]
-    if player["resources"] < cost:
-        return f"Not enough resources. {building_name} costs {cost}, you have {player['resources']}."
-
-    db.execute("UPDATE players SET resources = resources - ? WHERE name=?", (cost, player_name))
+    cost_dict = {"wood": cost}  # or adjust per building type later
+    if not consume_resources(player["id"], cost_dict):
+        return f"Not enough wood to build {building_name}."
     queue_building_job(player_name, building_name)
     build_time = ticks_to_minutes(b['build_time'])
     return f"{building_name} construction started. It will complete in {build_time} minutes."

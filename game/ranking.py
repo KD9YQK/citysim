@@ -8,6 +8,8 @@ import time
 from .db import Database
 from .utils import load_config
 from .events import send_message
+from .resources_base import get_resources, load_resource_definitions
+from .logger import game_log
 
 
 def ensure_tables():
@@ -26,7 +28,7 @@ def ensure_tables():
 def update_prestige(player):
     """
     Recalculate prestige for a single player using weighted factors.
-    Weights and bonuses are defined in config.yaml under `prestige_weights`.
+    Weighted resource value uses base_price from resources_config.yaml.
     """
     db = Database.instance()
     cfg = load_config("config.yaml")
@@ -36,31 +38,36 @@ def update_prestige(player):
     if not p:
         return
 
-    # --- Core stats from DB ---
-    resources = p["resources"]
+    # --- Compute weighted resource value ---
+    res_dict = get_resources(p["id"])
+    defs = load_resource_definitions()
+
+    weighted_resources = 0.0
+    for name, amount in res_dict.items():
+        base_price = defs.get(name, {}).get("base_price", 1.0)
+        weighted_resources += amount * base_price
+
     population = p["population"]
 
     total_buildings = db.execute(
         "SELECT COUNT(*) AS c FROM buildings WHERE player_name=?", (player,), fetchone=True
     )["c"]
 
-    # Count how many battles this player has won
     battles_won = db.execute(
         "SELECT COUNT(*) AS c FROM attacks WHERE attacker_name=? AND result='win'",
         (player,), fetchone=True
     )["c"]
 
-    # Check current diplomacy status
     at_war = db.execute(
         "SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
-        (p['id'], p['id']), fetchone=True
+        (p["id"], p["id"]), fetchone=True
     )
     peace_bonus = 10 if not at_war else 0
 
     # --- Weighted prestige calculation ---
     prestige = int(
         battles_won * weights.get("battles_won", 10)
-        + resources * weights.get("resources_gained", 0.01)
+        + weighted_resources * weights.get("resources_gained", 0.01)
         + population * weights.get("population", 0.05)
         + total_buildings * weights.get("buildings", 2)
         + peace_bonus * weights.get("peace_bonus", 1)
@@ -71,7 +78,6 @@ def update_prestige(player):
         (prestige, time.time(), player),
     )
 
-    # Record snapshot to history table
     db.execute(
         "INSERT INTO prestige_history (player, prestige, timestamp) VALUES (?, ?, ?)",
         (player, prestige, time.time()),
@@ -134,3 +140,140 @@ def reset_prestige_for_new_season():
     db = Database.instance()
     db.execute("DELETE FROM prestige_history")
     db.execute("UPDATE players SET prestige=0, last_prestige_update=?", (time.time(),))
+
+
+def update_trade_leaderboard():
+    """
+    Refreshes prestige standings based on cumulative trade profit.
+    Integrates with logger for world-tick output.
+    """
+    from .utils import load_config
+    cfg = load_config("npc_config.yaml")["npc_ai"].get("prestige_hook", {})
+    if not cfg.get("enabled", False):
+        return
+
+    limit = cfg.get("leaderboard_limit", 10)
+    db = Database.instance()
+
+    rows = db.execute(
+        "SELECT npc_name, total_profit, trades FROM npc_trade_stats "
+        "ORDER BY total_profit DESC LIMIT ?", (limit,), fetchall=True
+    )
+
+    if not rows:
+        return
+
+    lines = ["Top Traders Leaderboard"]
+    for i, row in enumerate(rows, start=1):
+        lines.append(f"{i:2d}. {row['npc_name']:<20} Profit: {row['total_profit']:.0f} Gold | Trades: {row['trades']}")
+
+    message = "\n".join(lines)
+    game_log("MARKET", message)
+
+
+def update_economy_leaderboard():
+    """
+    Combined economy leaderboard for NPCs and players.
+    Ranks all by prestige and total trade profit (if available).
+    """
+    sync_economy_prestige()  # ensures DB is up-to-date before showing ranks
+    cfg = load_config("npc_config.yaml")["npc_ai"].get("prestige_hook", {})
+    if not cfg.get("enabled", True):
+        return
+
+    limit = cfg.get("leaderboard_limit", 10)
+    db = Database.instance()
+
+    # 1️⃣ Pull all NPC trade stats
+    npc_rows = db.execute(
+        "SELECT npc_name AS name, total_profit AS profit, trades FROM npc_trade_stats",
+        fetchall=True,
+    )
+
+    # 2️⃣ Pull player prestige values
+    player_rows = db.execute(
+        "SELECT name, prestige FROM players WHERE is_npc = 0",
+        fetchall=True,
+    )
+
+    # 3️⃣ Combine data — NPC prestige inferred from trade performance
+    combined = []
+    for n in npc_rows:
+        prestige = (n["profit"] / 100.0) * cfg.get("weight_per_100_gold", 1.0)
+        combined.append({
+            "name": n["name"],
+            "type": "NPC",
+            "prestige": prestige,
+            "profit": n["profit"],
+            "trades": n["trades"],
+        })
+
+    for p in player_rows:
+        combined.append({
+            "name": p["name"],
+            "type": "Player",
+            "prestige": p["prestige"],
+            "profit": 0,
+            "trades": 0,
+        })
+
+    # 4️⃣ Sort combined data
+    combined.sort(key=lambda x: (x["prestige"], x["profit"]), reverse=True)
+    top = combined[:limit]
+
+    # 5️⃣ Log output
+    lines = ["=== TOP ECONOMIES ==="]
+    for i, row in enumerate(top, 1):
+        if row["type"] == "NPC":
+            lines.append(
+                f"{i:2d}. {row['name']:<18} [NPC] Prestige: {row['prestige']:.1f} | Profit: {row['profit']:.0f} | Trades: {row['trades']}"
+            )
+        else:
+            lines.append(
+                f"{i:2d}. {row['name']:<18} [Player] Prestige: {row['prestige']:.1f}"
+            )
+
+    message = "\n".join(lines)
+    game_log("RANKING", message)
+
+
+def sync_economy_prestige():
+    """
+    Ensures that NPC and Player prestige values in the database reflect
+    their current economic performance (trade profit and leaderboard ranking).
+    """
+    cfg = load_config("npc_config.yaml")["npc_ai"].get("prestige_hook", {})
+    if not cfg.get("enabled", True):
+        return
+
+    db = Database.instance()
+    weight = cfg.get("weight_per_100_gold", 1.0)
+
+    # 1️⃣ Pull all NPCs with trade data
+    npc_rows = db.execute(
+        "SELECT npc_name AS name, total_profit FROM npc_trade_stats", fetchall=True
+    )
+
+    # 2️⃣ Update NPC prestige in players table
+    for row in npc_rows:
+        prestige = (row["total_profit"] / 100.0) * weight
+        db.execute(
+            "UPDATE players SET prestige=? WHERE name=? AND is_npc=1",
+            (prestige, row["name"]),
+        )
+
+    # 3️⃣ Normalize player prestige (optional smoothing)
+    player_rows = db.execute(
+        "SELECT id, name, prestige FROM players WHERE is_npc=0", fetchall=True
+    )
+
+    if not player_rows:
+        return
+
+    avg_prestige = sum(p["prestige"] for p in player_rows) / len(player_rows)
+    for p in player_rows:
+        # Gradually pull player prestige toward the mean (optional balancing)
+        adjusted = (p["prestige"] + avg_prestige) / 2
+        db.execute("UPDATE players SET prestige=? WHERE id=?", (adjusted, p["id"]))
+
+    db.commit()

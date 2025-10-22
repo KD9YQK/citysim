@@ -14,6 +14,14 @@ from .events import clear_npc_messages
 from .models import wars_for, create_war, end_war, has_active_war
 from .espionage import queue_spy_training, schedule_espionage
 from .logger import ai_log
+from .resources_base import get_resources, consume_resources
+from .npc_economy import NPCEconomy
+from .npc_market_behavior import NPCMarketBehavior
+from.market_base import cleanup_trade_history, update_trade_prestige
+from .npc_trait_feedback import decay_all_traits
+
+
+market_behavior = NPCMarketBehavior(debug=False)
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -54,7 +62,8 @@ def choose_best_building(npc):
     # Key ratios
     pop_ratio = player["population"] / max(1, player["max_population"])
     troop_ratio = player["troops"] / max(1, player["max_troops"])
-    resources = player["resources"]
+    res_dict = get_resources(player["id"])
+    resources = sum(res_dict.values())  # total available wealth
 
     # Context flags
     at_war = len(db.execute("SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
@@ -114,7 +123,9 @@ def choose_training_amount(npc):
         return 0
 
     troop_cost = cfg.get("resource_cost_per_troop", 10)
-    resources = player["resources"]
+    res_dict = get_resources(player["id"])
+    resources = res_dict.get("gold", sum(res_dict.values()))
+
     available_troops = player["max_troops"] - player["troops"]
 
     # Skip training if poor or full
@@ -165,7 +176,8 @@ class NPCAI:
     }
 
     def __init__(self):
-        self.cfg = load_config("config.yaml")
+        self.cfg = load_config("npc_config.yaml")["npc_ai"]
+        self.global_cfg = load_config("config.yaml")
         self.bcfg = load_config("buildings_config.yaml")
         self.db = Database.instance()
 
@@ -253,11 +265,23 @@ class NPCAI:
             return  # Already building it
 
         player = self.db.execute("SELECT * FROM players WHERE name=?", (npc["name"],), fetchone=True)
-        if not player or player["resources"] < cost:
+        if not player:
             return
 
-        # Pay cost and queue
-        self.db.execute("UPDATE players SET resources = resources - ? WHERE name=?", (cost, npc["name"]))
+        res_dict = get_resources(player["id"])
+        wealth = res_dict.get("gold", sum(res_dict.values()))
+
+        if wealth < cost:
+            return
+
+        # Spend via centralized resource system
+        if not consume_resources(player["id"], {"gold": cost}):
+            return
+
+        queue_building_job(npc["name"], building)
+        self.mark_active(npc["name"])
+        ai_log("BUILD", f"{npc['name']} started building {building} (cost {cost} gold)", npc)
+
         queue_building_job(npc["name"], building)
         self.mark_active(npc["name"])
         ai_log("BUILD", f"{npc['name']} started building {building} ({cost} resources)", npc)
@@ -279,13 +303,17 @@ class NPCAI:
         if not player:
             return False
 
-        if player["resources"] < total_cost or player["population"] < amount:
+        res_dict = get_resources(player["id"])
+        wealth = res_dict.get("gold", sum(res_dict.values()))
+        if wealth < total_cost or player["population"] < amount:
             return False
 
-        # Spend immediately
+        if not consume_resources(player["id"], {"gold": total_cost}):
+            return False
+
         self.db.execute(
-            "UPDATE players SET resources = resources - ?, population = population - ? WHERE name=?",
-            (total_cost, amount, npc["name"]),
+            "UPDATE players SET population = population - ? WHERE name=?",
+            (amount, npc["name"]),
         )
 
         queue_training_job(npc["name"], amount)
@@ -355,16 +383,27 @@ class NPCAI:
 
     def run(self):
         """Execute one full AI pass for all NPCs."""
-        cfg = load_config("config.yaml")
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         npcs = get_all_npcs()
         if not npcs:
             return
         acted = False
 
         for npc in npcs:
+            eco = NPCEconomy()
+            eco.balance(npc)
+
+            # Optionally skip further actions if the NPC is too broke
+            if not eco.can_afford_action(npc, min_gold=50):
+                ai_log("ECONOMY", f"{npc['name']} skips this tick due to low funds.", npc)
+                continue
+
+            market_ai = NPCMarketBehavior()
+            market_ai.act_on_market(npc)
+
             self.decay_traits(npc['name'])
-            low_threshold = cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
-            if npc["resources"] < low_threshold:
+            low_threshold = npc_cfg.get("npc_ai", {}).get("low_resource_threshold", 100)
+            if sum(get_resources(npc["id"]).values()) < low_threshold:
                 self.evolve_traits(npc["name"], "low_resources")
                 acted = True
 
@@ -381,6 +420,20 @@ class NPCAI:
             if acted:
                 self.mark_active(npc['name'])
 
+            # --- Personality Feedback Integration ---
+            if npc_cfg.get("trait_evolution", {}).get("enabled", True):
+                if random.random() < npc_cfg["trait_evolution"].get("evolution_tick_chance", 0.15):
+                    self.evaluate_personality_feedback(npc)
+
+        if random.random() < 0.02:  # ~2% chance per tick
+            update_trade_prestige()
+            ai_log("PRESTIGE", "Trade-based prestige recalculated.", None)
+
+        if random.random() < npc_cfg.get("trade_history_cleanup", {}).get("cleanup_chance", 0.10):
+            cleanup_trade_history()
+            ai_log("SYSTEM", "Trade history cleanup executed.", None)
+
+        decay_all_traits()
         ai_log("SYSTEM", f"NPC Actions complete at {time.strftime('%H:%M:%S')}")
 
     # ---------------------------------------------------
@@ -423,7 +476,7 @@ class NPCAI:
     def evolve_traits(self, npc_name, event_type):
         """Adjust an NPC's personality traits based on recent events."""
         cfg = load_config("config.yaml")
-        npc_cfg = cfg.get("npc_ai", {})
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         change_cfg = npc_cfg.get("trait_change", {})
 
         delta = change_cfg.get(event_type, 0.05)  # default if not defined
@@ -456,7 +509,7 @@ class NPCAI:
     def decay_traits(self, npc_name):
         """Gradually restore an NPC's traits toward its base personality profile."""
         cfg = load_config("config.yaml")
-        npc_cfg = cfg.get("npc_ai", {})
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         decay_rate = npc_cfg.get("decay_rate", 0.01)
 
         # Optional: Skip if NPC inactive too long
@@ -491,6 +544,59 @@ class NPCAI:
 
         self.update_traits(npc_name, traits)
 
+    def evaluate_personality_feedback(self, npc):
+        """Gradually evolve NPC traits based on economic and military performance."""
+        npc_cfg = load_config("npc_config.yaml")["npc_ai"]["trait_evolution"]
+        evo_rate = npc_cfg.get("evolution_rate", 0.03)
+        clamp_min = npc_cfg.get("clamp_min", 0.05)
+        clamp_max = npc_cfg.get("clamp_max", 0.95)
+
+        traits = self.db.execute("SELECT * FROM npc_traits WHERE name=?", (npc["name"],), fetchone=True)
+        if not traits:
+            return
+        traits = dict(traits)
+        base_profile = self.PERSONALITY_PROFILES.get(npc["personality"], {})
+
+        # Basic performance metrics
+        gold = get_resources(npc["id"]).get("gold", 0)
+        recent_trades = self.db.execute(
+            "SELECT SUM(profit) as total_profit FROM trade_history WHERE npc_name=? AND timestamp > ?",
+            (npc["name"], time.time() - 3600),
+            fetchone=True,
+        )
+        profit = recent_trades["total_profit"] if recent_trades and recent_trades["total_profit"] else 0
+
+        # Determine direction of evolution
+        if profit > 0:
+            delta_build = evo_rate * npc_cfg["events"].get("trade_profit", 0.5)
+        elif profit < 0:
+            delta_build = evo_rate * npc_cfg["events"].get("trade_loss", -0.4)
+        else:
+            delta_build = 0
+
+        wars = wars_for(npc["name"])
+        active_wars = [w for w in wars if w["status"] == "active"]
+        if not active_wars and profit >= 0:
+            delta_peace = evo_rate * npc_cfg["events"].get("long_peace", 0.2)
+        else:
+            delta_peace = 0
+
+        # Wealth-based modulation
+        if gold < 100:
+            delta_attack = evo_rate * npc_cfg["events"].get("low_wealth", -0.3)
+        elif gold > 1000:
+            delta_attack = evo_rate * npc_cfg["events"].get("high_wealth", 0.3)
+        else:
+            delta_attack = 0
+
+        # Apply and clamp
+        traits["build_chance"] = min(clamp_max, max(clamp_min, traits["build_chance"] + delta_build))
+        traits["peace_chance"] = min(clamp_max, max(clamp_min, traits["peace_chance"] + delta_peace))
+        traits["attack_chance"] = min(clamp_max, max(clamp_min, traits["attack_chance"] + delta_attack))
+
+        self.update_traits(npc["name"], traits)
+        ai_log("TRAITS", f"{npc['name']} evolved traits via feedback: {traits}", npc)
+
     def mark_active(self, npc_name):
         """Record the last time this NPC performed an action."""
         self.db.execute(
@@ -520,7 +626,7 @@ class NPCAI:
         )["cnt"] > 0
 
         # === CASE 1: NPC is weak and losing ===
-        if troop_ratio < 0.25 or npc["resources"] < 50:
+        if troop_ratio < 0.25 or sum(get_resources(npc["id"]).values()) < 50:
             # If in active wars, try to make peace
             if active_wars and random.random() < (traits["peace_chance"] + 0.1):
                 target = random.choice(active_wars)
@@ -531,7 +637,7 @@ class NPCAI:
                 return True
 
         # === CASE 2: NPC is strong or aggressive ===
-        if troop_ratio > 0.6 and npc["resources"] > 100:
+        if troop_ratio > 0.6 and sum(get_resources(npc["id"]).values()) > 100:
             # More likely to start war if no current conflicts
             if not active_wars and random.random() < traits["attack_chance"]:
                 target_candidates = [p for p in all_players if p["name"] != npc["name"]]
@@ -624,12 +730,11 @@ class NPCAI:
         db = Database.instance()
         name = npc["name"]
 
-        cfg = self.cfg.get("npc_ai", {})
-        logging_enabled = cfg.get("espionage_logging", False)
-        log_mode = cfg.get("espionage_log_mode", "all")
+        logging_enabled = self.cfg.get("espionage_logging", False)
+        log_mode = self.cfg.get("espionage_log_mode", "all")
 
         # Skip if no spies available
-        data = db.execute("SELECT spies, resources FROM players WHERE name=?", (name,), fetchone=True)
+        data = db.execute("SELECT spies FROM players WHERE name=?", (name,), fetchone=True)
         if not data or data["spies"] <= 0:
             return False
 
@@ -646,7 +751,7 @@ class NPCAI:
         # Load intel
         intel = get_recent_intel(name)
         known_targets = {i["target"] for i in intel}
-        rich_targets = [i for i in intel if i["resources"] and i["resources"] > 300]
+        rich_targets = [i for i in intel if sum(get_resources(i["id"]).values()) and sum(get_resources(i["id"]).values()) > 300]
         strong_targets = [i for i in intel if i["troops"] and i["troops"] > 200]
 
         # Prefer unexplored targets 70% of the time
