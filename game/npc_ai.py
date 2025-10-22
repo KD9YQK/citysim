@@ -17,9 +17,8 @@ from .logger import ai_log
 from .resources_base import get_resources, consume_resources
 from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
-from.market_base import cleanup_trade_history, update_trade_prestige
+from .market_base import cleanup_trade_history, update_trade_prestige
 from .npc_trait_feedback import decay_all_traits
-
 
 market_behavior = NPCMarketBehavior(debug=False)
 
@@ -101,10 +100,11 @@ def choose_best_building(npc):
         weights["Barracks"] += 0.5
         weights["Farms"] += 0.5
 
-    # Resource efficiency factor
+    # Resource efficiency factor (using full resource dicts)
     for bname, w in list(weights.items()):
-        cost = bcfg.get(bname, {}).get("cost", 100)
-        weights[bname] = w * (resources / max(cost, 1))
+        cost_dict = bcfg.get(bname, {}).get("cost", {})
+        total_cost = sum(cost_dict.values()) if isinstance(cost_dict, dict) else float(cost_dict)
+        weights[bname] = w * (resources / max(total_cost, 1))
 
     # Add mild randomness
     for bname in weights:
@@ -122,21 +122,55 @@ def choose_training_amount(npc):
     if not player:
         return 0
 
-    troop_cost = cfg.get("resource_cost_per_troop", 10)
+    # New: prefer resource-based troop_cost dict, but fall back to old numeric value
+    troop_cost_cfg = cfg.get("troop_cost", None)
+    legacy_cost = cfg.get("resource_cost_per_troop", None)
+
     res_dict = get_resources(player["id"])
-    resources = res_dict.get("gold", sum(res_dict.values()))
+    # keep original behavior: use gold if that was the single-cost assumption, else use total wealth
+    total_wealth = sum(res_dict.values())
+
+    # Determine cost-per-unit and affordability
+    if troop_cost_cfg and isinstance(troop_cost_cfg, dict) and len(troop_cost_cfg) > 0:
+        # Calculate how many units are affordable by each resource, then take the min
+        affordable_counts = []
+        for res_name, per_unit in troop_cost_cfg.items():
+            try:
+                per_unit_val = float(per_unit)
+            except Exception:
+                per_unit_val = 0.0
+            if per_unit_val <= 0:
+                # If a per-unit cost is zero or invalid, treat it as unlimited for affordability calc
+                continue
+            affordable_by_res = int(res_dict.get(res_name, 0) // per_unit_val)
+            affordable_counts.append(affordable_by_res)
+        if affordable_counts:
+            max_affordable = min(affordable_counts)
+        else:
+            # If all per-unit costs were zero/invalid (unlikely), fall back to total wealth heuristic
+            cost_per_unit_estimate = sum(troop_cost_cfg.values()) if troop_cost_cfg else (legacy_cost or 1)
+            max_affordable = int(total_wealth // float(cost_per_unit_estimate)) if cost_per_unit_estimate > 0 else 0
+        cost_per_unit_for_threshold = sum(troop_cost_cfg.values())
+    else:
+        # Legacy numeric behavior
+        troop_cost = float(legacy_cost) if legacy_cost is not None else 10.0
+        max_affordable = int((res_dict.get("gold", total_wealth)) // troop_cost)
+        cost_per_unit_for_threshold = troop_cost
 
     available_troops = player["max_troops"] - player["troops"]
-
-    # Skip training if poor or full
-    if resources < troop_cost * 10 or available_troops <= 0:
+    if available_troops <= 0:
         return 0
 
-    # Determine aggression
-    at_war = len(db.execute("SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
-                            (npc["id"], npc["id"]), fetchall=True)) > 0
+    # Skip training if poor (preserve original threshold logic: resources < cost * 10)
+    primary_resource_amount = res_dict.get("gold", total_wealth)
+    if primary_resource_amount < cost_per_unit_for_threshold * 10:
+        return 0
 
-    # Personality scaling
+    # Determine aggression (preserve original personality scaling)
+    at_war = len(db.execute(
+        "SELECT * FROM wars WHERE (attacker_id=? OR defender_id=?) AND status='active'",
+        (npc["id"], npc["id"]), fetchall=True)) > 0
+
     if npc["personality"] == "Aggressor":
         aggression = 1.0
     elif npc["personality"] == "Defender":
@@ -149,12 +183,11 @@ def choose_training_amount(npc):
     if at_war:
         aggression *= 1.5  # boost during wartime
 
-    # Decide how much to train
+    # Decide how much to train (preserve original randomness and fraction range)
     fraction = random.uniform(0.2, 0.5) * aggression
     to_train = int(available_troops * fraction)
 
-    # Resource check
-    max_affordable = resources // troop_cost
+    # Final affordability cap
     return max(0, min(to_train, max_affordable))
 
 
@@ -254,8 +287,7 @@ class NPCAI:
         if not building:
             return
 
-        cost = self.bcfg.get(building, {}).get("cost", 0)
-
+        cost_dict = self.bcfg.get(building, {}).get("cost", {})
         existing = self.db.execute(
             "SELECT * FROM building_queue WHERE player_name=? AND building_name=?",
             (npc["name"], building),
@@ -268,23 +300,12 @@ class NPCAI:
         if not player:
             return
 
-        res_dict = get_resources(player["id"])
-        wealth = res_dict.get("gold", sum(res_dict.values()))
-
-        if wealth < cost:
-            return
-
-        # Spend via centralized resource system
-        if not consume_resources(player["id"], {"gold": cost}):
+        if not consume_resources(player["id"], cost_dict):
             return
 
         queue_building_job(npc["name"], building)
         self.mark_active(npc["name"])
-        ai_log("BUILD", f"{npc['name']} started building {building} (cost {cost} gold)", npc)
-
-        queue_building_job(npc["name"], building)
-        self.mark_active(npc["name"])
-        ai_log("BUILD", f"{npc['name']} started building {building} ({cost} resources)", npc)
+        ai_log("BUILD", f"{npc['name']} started building {building} (cost {cost_dict})", npc)
 
     # ---------------------------------------------------
     # === TRAINING LOGIC ===
@@ -296,19 +317,10 @@ class NPCAI:
         if amount <= 0:
             return False
 
-        troop_cost = int(self.cfg.get("resource_cost_per_troop", 5))
-        total_cost = troop_cost * amount
+        troop_cost = self.cfg.get("troop_cost", {})
+        total_cost = {res: amt * amount for res, amt in troop_cost.items()}
 
-        player = self.db.execute("SELECT * FROM players WHERE name=?", (npc["name"],), fetchone=True)
-        if not player:
-            return False
-
-        res_dict = get_resources(player["id"])
-        wealth = res_dict.get("gold", sum(res_dict.values()))
-        if wealth < total_cost or player["population"] < amount:
-            return False
-
-        if not consume_resources(player["id"], {"gold": total_cost}):
+        if not consume_resources(npc["id"], total_cost):
             return False
 
         self.db.execute(
@@ -475,7 +487,6 @@ class NPCAI:
 
     def evolve_traits(self, npc_name, event_type):
         """Adjust an NPC's personality traits based on recent events."""
-        cfg = load_config("config.yaml")
         npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         change_cfg = npc_cfg.get("trait_change", {})
 
@@ -508,7 +519,6 @@ class NPCAI:
 
     def decay_traits(self, npc_name):
         """Gradually restore an NPC's traits toward its base personality profile."""
-        cfg = load_config("config.yaml")
         npc_cfg = load_config("npc_config.yaml")["npc_ai"]
         decay_rate = npc_cfg.get("decay_rate", 0.01)
 
@@ -557,7 +567,7 @@ class NPCAI:
         traits = dict(traits)
         base_profile = self.PERSONALITY_PROFILES.get(npc["personality"], {})
 
-        # Basic performance metrics
+        # --- Performance metrics ---
         gold = get_resources(npc["id"]).get("gold", 0)
         recent_trades = self.db.execute(
             "SELECT SUM(profit) as total_profit FROM trade_history WHERE npc_name=? AND timestamp > ?",
@@ -566,7 +576,7 @@ class NPCAI:
         )
         profit = recent_trades["total_profit"] if recent_trades and recent_trades["total_profit"] else 0
 
-        # Determine direction of evolution
+        # --- Determine event-driven evolution deltas ---
         if profit > 0:
             delta_build = evo_rate * npc_cfg["events"].get("trade_profit", 0.5)
         elif profit < 0:
@@ -581,7 +591,6 @@ class NPCAI:
         else:
             delta_peace = 0
 
-        # Wealth-based modulation
         if gold < 100:
             delta_attack = evo_rate * npc_cfg["events"].get("low_wealth", -0.3)
         elif gold > 1000:
@@ -589,13 +598,23 @@ class NPCAI:
         else:
             delta_attack = 0
 
-        # Apply and clamp
+        # --- Integrate base_profile reversion ---
+        if base_profile:
+            for key in ["attack_chance", "build_chance", "peace_chance"]:
+                if key not in traits or key not in base_profile:
+                    continue
+                base_val = base_profile[key]
+                deviation = traits[key] - base_val
+                # Gradually pull traits halfway back toward base profile each evolution cycle
+                traits[key] -= deviation * evo_rate * 0.5
+
+        # --- Apply deltas & clamp ---
         traits["build_chance"] = min(clamp_max, max(clamp_min, traits["build_chance"] + delta_build))
         traits["peace_chance"] = min(clamp_max, max(clamp_min, traits["peace_chance"] + delta_peace))
         traits["attack_chance"] = min(clamp_max, max(clamp_min, traits["attack_chance"] + delta_attack))
 
         self.update_traits(npc["name"], traits)
-        ai_log("TRAITS", f"{npc['name']} evolved traits via feedback: {traits}", npc)
+        ai_log("TRAITS", f"{npc['name']} evolved traits via feedback (base-aligned): {traits}", npc)
 
     def mark_active(self, npc_name):
         """Record the last time this NPC performed an action."""
@@ -751,7 +770,8 @@ class NPCAI:
         # Load intel
         intel = get_recent_intel(name)
         known_targets = {i["target"] for i in intel}
-        rich_targets = [i for i in intel if sum(get_resources(i["id"]).values()) and sum(get_resources(i["id"]).values()) > 300]
+        rich_targets = [i for i in intel if
+                        sum(get_resources(i["id"]).values()) and sum(get_resources(i["id"]).values()) > 300]
         strong_targets = [i for i in intel if i["troops"] and i["troops"] > 200]
 
         # Prefer unexplored targets 70% of the time

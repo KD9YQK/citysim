@@ -14,6 +14,7 @@ from .upkeep_system import process_all_upkeep
 from .market_base import update_trade_prestige
 from .npc_trait_feedback import print_npc_traits
 from .world_events import WorldEvents
+from .economy import gain_resources_from_buildings
 
 
 def process_attacks():
@@ -60,6 +61,7 @@ async def main_loop():
             for p in players:
                 update_population(p["name"])
                 gain_resources_from_population(p["name"])
+                gain_resources_from_buildings(p['name'])
 
             process_all_upkeep()
             process_espionage_jobs()

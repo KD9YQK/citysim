@@ -219,7 +219,8 @@ def gain_resources_from_population(player_name):
 
     pop = player["population"]
     # Example: convert population into food or gold
-    delta = {"food": pop * 0.1, "gold": pop * 0.05}
+    tax = 0.05
+    delta = {"gold": pop * tax}
     add_resources(player["id"], delta)
 
 
@@ -244,10 +245,11 @@ def start_training(player_name, amount):
     if player["population"] < total_pop_cost:
         return f"Not enough population to train {amount} troops."
 
-    resource_cost_per_troop = int(cfg.get("resource_cost_per_troop", 5))
-    total_cost = {"gold": amount * resource_cost_per_troop}
+    troop_cost = cfg.get("troop_cost", {})
+    total_cost = {res: amt * amount for res, amt in troop_cost.items()}
     if not consume_resources(player["id"], total_cost):
-        return f"Not enough food to train {amount} troops."
+        missing = ", ".join(f"{k}: {v}" for k, v in total_cost.items())
+        return f"Not enough resources to train {amount} troops. Required: {missing}."
 
     db.execute(
         "UPDATE players SET population=? WHERE name=?",
@@ -274,10 +276,10 @@ def start_building(player_name, building_name):
     if building_name not in bcfg:
         return "Invalid building type."
     b = bcfg[building_name]
-    cost = b["cost"]
-    cost_dict = {"wood": cost}  # or adjust per building type later
+    cost_dict = b.get("cost", {})
     if not consume_resources(player["id"], cost_dict):
-        return f"Not enough wood to build {building_name}."
+        missing = ", ".join(f"{k}: {v}" for k, v in cost_dict.items())
+        return f"Not enough resources to build {building_name}. Required: {missing}."
     queue_building_job(player_name, building_name)
     build_time = ticks_to_minutes(b['build_time'])
     return f"{building_name} construction started. It will complete in {build_time} minutes."

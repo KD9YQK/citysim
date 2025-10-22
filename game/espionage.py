@@ -74,7 +74,7 @@ def queue_spy_training(player, amount):
     """Queue new spies for training. Max spies = total Academy levels."""
     db = Database.instance()
     cfg = load_config("config.yaml").get("espionage", {})
-    train_cost = cfg.get("train_cost", 200)
+    train_cost_dict = cfg.get("train_resource_cost", {})  # ✅ use resource-based costs
     train_time = cfg.get("train_time", 10)
 
     # Check Academy levels
@@ -91,18 +91,15 @@ def queue_spy_training(player, amount):
     if not data:
         return "Player not found.\r\n"
 
-    res_dict = get_resources(data["id"])
-    available = res_dict.get("gold", sum(res_dict.values()))
-    total_cost = amount * train_cost
+    # Compute total resource cost (multi-resource support)
+    total_cost = {res: amt * amount for res, amt in train_cost_dict.items()}
 
-    if available < total_cost:
-        return "Not enough gold to train spies.\r\n"
+    if not consume_resources(data["id"], total_cost):
+        missing = ", ".join(f"{r}: {c}" for r, c in total_cost.items())
+        return f"Not enough resources to train spies. Required: {missing}.\r\n"
 
     if data["spies"] + amount > max_spies:
         return f"You cannot train more spies. Max allowed: {max_spies}.\r\n"
-
-    if not consume_resources(data["id"], {"gold": total_cost}):
-        return "Not enough gold to train spies.\r\n"
 
     db.execute(
         """

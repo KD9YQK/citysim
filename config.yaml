@@ -13,6 +13,9 @@ troop_defense_power: 1              # Base defense power per troop
 starting_troops: 50                 # Troops given to new players
 training_time: 5                    # Minutes required to train new troops
 attack_base_time: 8                 # Base time (minutes) for attacks to arrive
+troop_cost:
+  gold: 5
+  copper: 1
 
 # === Telnet Server Settings ===
 telnet_port: 8023                   # Telnet port to listen on
@@ -101,7 +104,7 @@ espionage:
   train_time: 10                # ticks to complete spy training
   train_gold_cost: 50           # gold cost per spy
   train_resource_costs:         # material costs per spy
-    food: 5
+    gold: 10
     copper: 3
 
   # Spy Missions
