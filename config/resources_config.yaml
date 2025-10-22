@@ -1,0 +1,40 @@
+# resources_config.yaml
+# Defines all resource types, their starting values, and global market behavior.
+# Stone → Bronze Age economy configuration.
+
+resources:
+  food:
+    description: Edible goods harvested or stored in granaries; essential for survival and trade.
+    starting_amount: 400
+    base_price: 1.0
+    base_supply: 2000
+
+  wood:
+    description: Timber gathered from forests; used in tools, housing, and construction.
+    starting_amount: 100
+    base_price: 1.3
+    base_supply: 1500
+
+  stone:
+    description: Rough stone quarried for walls, forts, and durable structures.
+    starting_amount: 50
+    base_price: 1.3
+    base_supply: 1000
+
+  copper:
+    description: Early metal used for crafting weapons, tools, and trade goods.
+    starting_amount: 20
+    base_price: 1.3
+    base_supply: 800
+
+  gold:
+    description: Rare, valuable metal used as primitive currency and prestige.
+    starting_amount: 200
+    base_price: 7.3
+    base_supply: 0
+
+# Global market behavior
+market:
+  price_floor: 0.5          # Minimum allowed price for any resource
+  price_ceiling: 2.0        # Maximum allowed price for any resource
+  volitility: .38

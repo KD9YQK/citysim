@@ -1,11 +1,11 @@
 import time
 import random
-from .db import Database
-from .events import send_message
+from game.utility.db import Database
+from game.utility.messaging import send_message
 from .models import get_player_by_name, adjust_troops
-from .utils import load_config, ticks_passed, ticks_to_minutes
-from .logger import game_log
-from .resources_base import get_resources, consume_resources, add_resources
+from game.utility.utils import load_config, ticks_passed, ticks_to_minutes
+from game.utility.logger import game_log
+from game.economy.resources_base import get_resources, consume_resources, add_resources
 
 
 # ----------------------------------------------------------------------
@@ -28,7 +28,7 @@ def schedule_attack(attacker_name, defender_name, troops_sent):
     db.execute("UPDATE players SET troops = troops - ? WHERE name=?", (troops_sent, attacker_name))
 
     # EVOLVE AI
-    from .npc_ai import NPCAI
+    from game.npc.npc_ai import NPCAI
     npc = NPCAI()
     if npc.is_npc(defender_name):
         npc.evolve_traits(defender_name, "attacked")
@@ -179,7 +179,7 @@ def process_training_jobs():
             db.execute("UPDATE training SET status='completed' WHERE id=?", (job["id"],))
 
             # Optional: notify player
-            from .events import send_message
+            from game.utility.messaging import send_message
             msg = f"Training completed: {job['troops']} troops are now ready."
             send_message(job["player_name"], msg)
 
@@ -221,6 +221,6 @@ def process_building_jobs():
                 )
 
             # Send message
-            from .events import send_message
+            from game.utility.messaging import send_message
             msg = f"Your {job['building_name']} construction has completed!"
             send_message(job["player_name"], msg)

@@ -5,10 +5,10 @@ Integrates with resources_base.py for multi-resource economy support.
 
 import time
 import random
-from .db import Database
-from .utils import load_config, ticks_passed
-from .events import send_message
-from .resources_base import get_resources, consume_resources, add_resources
+from game.utility.db import Database
+from game.utility.utils import load_config, ticks_passed
+from game.utility.messaging import send_message
+from game.economy.resources_base import get_resources, consume_resources, add_resources
 
 
 def schedule_espionage(attacker, target, action):
@@ -79,7 +79,7 @@ def queue_spy_training(player, amount):
 
     # Check Academy levels
     academy = db.execute(
-        "SELECT SUM(level) AS total FROM buildings WHERE owner=? AND name='Academys'",
+        "SELECT SUM(level) AS total FROM buildings WHERE owner=? AND name='Academies'",
         (player,),
         fetchone=True,
     )

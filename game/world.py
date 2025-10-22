@@ -1,20 +1,20 @@
 import asyncio
 import traceback
-from .db import Database
+from game.utility.db import Database
 from .models import list_players, update_population, gain_resources_from_population, recalculate_all_player_stats
 from .actions import process_training_jobs, process_building_jobs, resolve_battle
-from .npc_ai import NPCAI
-from .utils import load_config, ticks_passed
-from .ranking import update_all_prestige, update_trade_leaderboard, update_economy_leaderboard
+from game.npc.npc_ai import NPCAI
+from game.utility.utils import load_config, ticks_passed
+from game.ranking.ranking import update_all_prestige, update_trade_leaderboard, update_economy_leaderboard
 from .espionage import process_espionage_jobs, process_spy_training_jobs
-from .logger import game_log
-from .achievements import process_achievements
-from .random_events import process_random_events
-from .upkeep_system import process_all_upkeep
-from .market_base import update_trade_prestige
-from .npc_trait_feedback import print_npc_traits
-from .world_events import WorldEvents
-from .economy import gain_resources_from_buildings
+from game.utility.logger import game_log
+from game.ranking.achievements import process_achievements
+from game.events.random_events import process_random_events
+from game.economy.upkeep_system import process_all_upkeep
+from game.economy.market_base import update_trade_prestige
+from game.npc.npc_trait_feedback import print_npc_traits
+from game.events.world_events import WorldEvents
+from game.economy.economy import gain_resources_from_buildings
 
 
 def process_attacks():

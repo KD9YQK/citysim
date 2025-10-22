@@ -1,7 +1,7 @@
 import asyncio
-from game.utils import load_config
-from game.db import Database
-from game.models import init as models_init
+from game.utility.utils import load_config
+from game.utility.db import Database
+#from game.models import init as models_init
 from game.telnet_server import start_server
 
 
@@ -10,7 +10,7 @@ def prepare():
     db_path = cfg.get('db_path', 'city_sim.db')
     # ensure DB instance
     Database.instance(db_path)
-    models_init(db_path)
+    #models_init(db_path)
 
 
 if __name__ == '__main__':

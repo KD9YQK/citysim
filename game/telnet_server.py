@@ -2,11 +2,12 @@ import asyncio
 import socket
 import traceback
 
-from .commands import handle_command, ensure_player
-from .events import clients, clients_lock
-from .utils import load_config
+from .commands import dispatch_command
+from .models import ensure_player
+from game.utility.messaging import clients, clients_lock
+from game.utility.utils import load_config
 from .world import main_loop
-from .lore import get_random_lore
+from game.utility.lore import get_random_lore
 
 config = load_config()
 ip_counts = {}
@@ -145,7 +146,7 @@ async def handle_client(reader, writer):
                 continue
 
             try:
-                resp = await handle_command(session.name, cmd)
+                resp = await dispatch_command(session.name, cmd)
             except Exception as e:
                 traceback.print_exc()
                 resp = f"Error handling command: {e}"
