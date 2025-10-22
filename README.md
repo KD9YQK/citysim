@@ -1,17 +1,12 @@
-# 🏙️ CITY SIM
-
-**Version:** Development (Updated 2025-10-21)  
-**Type:** Asynchronous City Simulation / Strategy Engine  
-**Language:** Python 3.x  
-**Persistence:** SQLite  
-**Interface:** Telnet (Player + Admin)
+# 🏙️ CITY SIM  
+**Persistent Economic & AI Simulation Engine**  
+**Updated:** 2025-10-21 (Post Step 8 Completion)
 
 ---
 
 ## 📖 Overview
-
-**CITY SIM** is a tick-driven asynchronous simulation game combining **city-building**, **economy management**, **AI-driven diplomacy**, and **espionage** systems.  
-Each in-game tick advances the simulation — updating populations, resources, AI behaviors, achievements, and global market conditions — creating an evolving and reactive world.
+**City Sim** is a persistent, tick-driven simulation game modeling the **economic**, **social**, and **military** dynamics of both player- and NPC-controlled cities.  
+Every game tick advances all systems — population, economy, construction, warfare, espionage, AI, and global events — within an asynchronous, data-driven world.
 
 ---
 
@@ -19,21 +14,21 @@ Each in-game tick advances the simulation — updating populations, resources, A
 
 | Gameplay Aspect | Description | Key Files / Modules |
 |-----------------|--------------|----------------------|
-| **Tick-Driven Simulation Loop** | Asynchronous loop advancing all systems (population, combat, AI, espionage, economy, prestige, etc.) | `world.py`, `main.py`, `utils.py`, `config.yaml` |
-| **Persistent Database** | SQLite persistence with automatic schema creation and thread-safe access | `db.py` |
-| **Models & Core Logic** | City state management: resources, population, buildings, training, wars | `models.py` |
-| **Combat System** | Player/NPC battles, casualties, loot, peace resolution | `actions.py`, `models.py` |
-| **Economy (Expanded)** | Multi-resource generation, tick-based updates, and dynamic market pricing | `resources_base.py`, `economy.py`, `market_base.py` |
-| **Population Management** | Growth logic implemented; upkeep and starvation pending | `models.py`, `world.py` |
-| **Achievements** | Milestones and titles validated each tick | `achievements.py`, `achievements_config.yaml` |
-| **Ranking / Prestige** | Leaderboard recalculated from weighted resource values | `ranking.py`, `config.yaml` |
-| **NPC AI** | Personality-driven decisions (Aggressor, Defender, Economist, Opportunist) handling warfare, espionage, and economy | `npc_ai.py`, `npc_config.yaml` |
-| **Espionage** | Spy training, scouting, theft, sabotage, and intel | `espionage.py`, `models.py` |
-| **Events & Messaging** | Random and narrative events with persistent message log | `events.py`, `random_events.py`, `lore.py` |
-| **Telnet Command Interface** | Async Telnet server for player/admin interaction | `telnet_server.py`, `commands.py`, `admin_commands.py` |
-| **Admin Tools** | Inspect/modify world state, broadcast, grant resources | `admin_commands.py` |
-| **Logging Framework** | Unified colorized logger by category | `logger.py`, `config.yaml` |
-| **Utility Functions** | YAML config loader, tick math, helpers | `utils.py` |
+| **Tick-Driven Simulation Loop** | Asynchronous loop advancing all systems each tick — population, construction, combat, AI, espionage, economy, events, prestige. | `world.py`, `main.py`, `utils.py`, `config.yaml` |
+| **Persistent Database** | SQLite persistence layer with schema auto-creation, thread-safe transactions, and pooled queries. | `db.py` |
+| **Models & Core Logic** | Defines players, NPCs, resources, armies, and building logic. Handles wars, city growth, and effects. | `models.py` |
+| **Combat System** | Resolves battles, casualties, and loot using the unified resource system. | `actions.py`, `models.py` |
+| **Economy (Expanded)** | Implements unified resource persistence, global supply-based pricing, and player/NPC trading. | `resources_base.py`, `economy.py`, `market_base.py` |
+| **Population & Upkeep System** | Deducts food/gold per tick; enforces starvation and morale penalties. | `upkeep_system.py`, `world.py`, `upkeep_config.yaml` |
+| **Achievements** | Awards milestones and prestige-based titles. | `achievements.py`, `achievements_config.yaml` |
+| **Ranking & Prestige** | Calculates prestige from weighted resource values; updates leaderboard per tick. | `ranking.py`, `config.yaml` |
+| **NPC AI** | Personality-driven logic with evolving traits (greed, risk, trade bias). | `npc_ai.py`, `npc_market_behavior.py`, `npc_trait_feedback.py`, `npc_config.yaml` |
+| **Espionage** | Spy training, scouting, sabotage, theft, and intel generation. | `espionage.py`, `models.py` |
+| **Events & Messaging** | Central event hub with world trade events and notifications. | `events.py`, `random_events.py`, `world_events.py` |
+| **Telnet Command Interface** | Async command system for player/admin control. | `telnet_server.py`, `commands.py`, `admin_commands.py` |
+| **Admin Tools** | Inspect, broadcast, and modify world state. | `admin_commands.py` |
+| **Logging Framework** | Unified, color-coded logger for AI, economy, and world systems. | `logger.py`, `config.yaml` |
+| **Utility Functions** | YAML loaders, tick/time conversion, and helpers. | `utils.py` |
 
 ---
 
@@ -41,13 +36,14 @@ Each in-game tick advances the simulation — updating populations, resources, A
 
 | File | Purpose |
 |------|----------|
-| `config.yaml` | Global tick timing, prestige weights, constants |
-| `npc_config.yaml` | AI personalities and behavior weights |
-| `buildings_config.yaml` | Building definitions and bonuses |
-| `resources_config.yaml` | Resource definitions (type, base_price, supply) and market params |
-| `achievements_config.yaml` | Milestone thresholds and titles |
-| `world_events_config.yaml` | Placeholder for large-scale world trade events |
-| `lore.yaml` | Optional lore text for random world flavor |
+| `config.yaml` | Global constants, tick timing, prestige weights, economy volatility |
+| `npc_config.yaml` | AI tuning: trade thresholds, personality traits, evolution rates |
+| `buildings_config.yaml` | Building definitions, production modifiers, and costs |
+| `resources_config.yaml` | Canonical resource data (base price, volatility, supply) |
+| `upkeep_config.yaml` | Defines per-tick costs for population, armies, and structures |
+| `achievements_config.yaml` | Achievement requirements and prestige bonuses |
+| `world_events_config.yaml` | Defines global market/environmental events |
+| `lore.yaml` | Optional narrative flavor text |
 
 ---
 
@@ -55,65 +51,94 @@ Each in-game tick advances the simulation — updating populations, resources, A
 
 | Feature | Description | Files |
 |----------|--------------|-------|
-| **Lore & Flavor** | Randomized lore messages to enrich gameplay | `lore.py` |
-| **Random Events** | Small per-tick effects for flavor or minor economic shifts | `random_events.py` |
-| **Event Messaging** | Backend for in-game notifications and mail | `events.py` |
-| **Utility Loader** | Safe YAML loading, tick math, conversion helpers | `utils.py` |
-| **Logging Configuration** | Categories, colors, verbosity | `logger.py` |
+| **Lore & Flavor** | Adds dynamic lore messages and storylines. | `lore.py` |
+| **Random Events** | Tick-based minor world fluctuations. | `random_events.py` |
+| **Event Messaging** | Central message delivery and notification system. | `events.py` |
+| **Utility Loader** | Safe YAML loading and tick math utilities. | `utils.py` |
+| **Logging Configuration** | Color themes, verbosity, structured categories. | `logger.py` |
 
 ---
 
-## 🚧 Implementation Status (as of 2025-10-21)
+## 🚀 Implementation Status (As of Step 8 Completion)
 
 | System | State | Notes |
 |--------|--------|-------|
-| Multi-Resource Base Layer | ✅ Complete | `resources_base.py` consolidates all resource logic |
-| Economy Integration | ✅ Complete | All modules converted to use unified resource base |
-| Global Market System | ✅ Complete | `market_base.py` supports dynamic supply/demand pricing |
-| Ranking Refactor | ✅ Complete | Prestige computed from resource × base_price |
-| NPC / Espionage / Event Updates | ✅ Complete | All economy calls routed via unified layer |
-| Combat System | ⚙️ Functional | Uses unified resource handling |
-| Food Upkeep / Consumption | ⏳ Pending | To be added in population tick updates |
-| Trade Events | ⏳ Planned | Placeholder config exists, engine pending |
-| AI Economic Behavior | ⏳ Pending | Will follow upkeep implementation |
+| **Multi-Resource Base Layer** | ✅ Complete | Unified resource management for all modules |
+| **Global Market System** | ✅ Complete | Supply/demand pricing and market trading |
+| **Population Upkeep & Consumption** | ✅ Complete | Starvation, desertion, morale logic implemented |
+| **Comprehensive Resource Integration** | ✅ Complete | All systems use `resources_base` |
+| **NPC Economic Planning** | ✅ Complete | NPCs maintain balanced food/gold intelligently |
+| **NPC Market Behavior** | ✅ Complete | Adaptive trading based on market ratios/events |
+| **Economic Trait Feedback** | ✅ Complete | Dynamic evolution of NPC traits |
+| **World Trade Events** | ✅ Complete | Configurable global modifiers affect prices/trade |
+| **Ranking & Prestige** | ✅ Complete | Integrated with economy and events |
+| **Combat & Espionage** | ⚙️ Functional | Fully connected to economy and persistence layers |
 
 ---
 
-## ⚠️ Current Implementation Gaps
+## 🌍 World Trade Event System
 
-- No per-tick **food/gold upkeep** for population or armies  
-- No **market participation logic** for NPCs  
-- No **global world/trade events** yet applied  
-- No **dynamic AI trait feedback** from economic performance  
+Implemented via `world_events.py` and `world_events_config.yaml`.
 
----
+Each event defines:
+- **chance**  •  **duration**  •  **effects**  •  **messages**
 
-## 🗺️ Economic Expansion Roadmap
+Effects may modify:
+- `global_price_mult`
+- `npc_trade_rate_mult`
+- Resource-specific multipliers
 
-| Step | Feature | Status | Description |
-|------|----------|---------|--------------|
-| 1 | Multi-Resource Base Layer | ✅ | Unify all resource accounting (I/O, validation, DB) |
-| 2 | Global Market System | ✅ | Dynamic pricing, player ↔ market trading |
-| 3 | Upkeep & Consumption System | ⏳ | Food/gold upkeep for population, armies, buildings |
-| 4 | Comprehensive Resource Integration | ⏳ | Ensure every system routes through unified layer |
-| 5 | NPC Economic Planning | ⏳ | AI evaluates shortages, builds, and trades |
-| 6 | NPC Market Behavior | ⏳ | NPCs buy/sell with market based on needs/personality |
-| 7 | Economic Trait Feedback | ⏳ | AI traits evolve from economic success/failure |
-| 8 | World Trade Events | ⏳ | Global booms/famines affect supply/demand |
+### Example Events
+| Event | Effect |
+|--------|---------|
+| **Harvest Boom** | Abundant food, reduced prices |
+| **Iron Shortage** | Scarcity raises metal prices |
+| **Drought Season** | Increases food/water prices |
+| **Prosperity Wave** | Boosts trade and production |
+| **Trade Embargo** | Reduces trade volume, increases scarcity |
+| **Technological Breakthrough** | Improves efficiency, lowers costs |
+| **War Mobilization** | Raises demand for metals/weapons |
 
----
-
-## 🧠 Architecture Notes
-
-- **Asynchronous Tick System:** Every system advances in coordinated, non-blocking ticks.
-- **SQLite Persistence:** Safely handles concurrent writes via lightweight transaction layer.
-- **Data-Driven Configuration:** All gameplay constants, building stats, and resources defined in YAML.
-- **AI Modularity:** Personalities are data-defined; behaviors easily extended via config.
+All event parameters are modular and easily balanced via configuration.
 
 ---
 
-## 🧩 Running the Simulation
+## 🧭 Roadmap II — Economic Balancing & Progression Tuning
 
-**Start the simulation:**
+With all core systems complete, **Roadmap II** focuses on refining pacing, equilibrium, and sustainable gameplay.
+
+| Step | Goal | Deliverables |
+|------|------|---------------|
+| **1 – Baseline Data Audit** | Collect & visualize all resource/NPC/building data; find imbalances. | `balance_report.csv` |
+| **2 – Starting Balance Calibration** | Ensure fair early-game survival (100–200 ticks). | Test logs + updated configs |
+| **3 – Production & Yield Scaling** | Tune building outputs vs. upkeep; maintain 1.1×–1.3× surplus. | Updated `buildings_config.yaml` |
+| **4 – Upkeep & Consumption Rebalance** | Balance food/gold costs for realistic pressure. | Revised `upkeep_config.yaml` |
+| **5 – Market & Price Dynamics** | Adjust volatility & elasticity for stable markets. | Updated `resources_config.yaml` |
+| **6 – NPC Economic Strategy Tuning** | Calibrate AI trading logic and thresholds. | Updated `npc_config.yaml` |
+| **7 – Prestige & Progression Curve** | Scale prestige vs. difficulty; prevent runaway growth. | Updated `config.yaml` |
+| **8 – Dynamic Event Impact Balance** | Normalize event duration/intensity. | Tuned `world_events_config.yaml` |
+| **9 – Full Simulation Burn-In** | Validate long-term (500–2000 ticks) stability. | Aggregated data + adjustments |
+| **10 – Final Balancing & Docs** | Freeze constants; produce tuning docs. | `BALANCE_NOTES.md` + final configs |
+
+---
+
+## 🔧 Current Development Phase
+All systems through **Step 8** are implemented.  
+City Sim now enters **Economic Balancing & Progression Tuning (Roadmap II)** to refine pacing, realism, and fairness for both player and NPC economies.
+
+---
+
+## 🧰 Dependencies
+
+- Python 3.10 +  
+- `aiosqlite`  
+- `pyyaml`  
+- `asyncio`  
+- `colorama`  
+
+---
+
+## ▶️ Running the Simulation
+
 ```bash
 python main.py
