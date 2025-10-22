@@ -13,6 +13,7 @@ from .random_events import process_random_events
 from .upkeep_system import process_all_upkeep
 from .market_base import update_trade_prestige
 from .npc_trait_feedback import print_npc_traits
+from .world_events import WorldEvents
 
 
 def process_attacks():
@@ -43,11 +44,14 @@ async def main_loop():
     prestige_tick = 0
     trait_feedback_tick = 0
 
+    events = WorldEvents()
+
     while True:
         cfg = load_config("config.yaml")
         tick_minutes = cfg.get("tick_interval", 1)
         tick_seconds = tick_minutes * 60
         try:
+            events.process_world_events()
             process_training_jobs()
             process_building_jobs()
             recalculate_all_player_stats()

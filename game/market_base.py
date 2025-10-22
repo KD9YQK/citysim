@@ -21,6 +21,9 @@ from .resources_base import (
 )
 from .utils import load_config
 from .ranking import update_prestige
+from .world_events import WorldEvents
+
+world_events = WorldEvents()
 
 
 # ---------------------------------------------------------------------
@@ -86,6 +89,7 @@ def get_market_price(resource_name: str) -> float:
     """
     Compute dynamic market price for a resource.
     Prices rise when supply is low and fall when supply is high.
+    Now also applies world event modifiers (Step 8).
     """
     defs = load_resource_definitions()
     res_info = defs.get(resource_name)
@@ -104,6 +108,21 @@ def get_market_price(resource_name: str) -> float:
     ratio = base_supply / max(current_supply, 1)
     price = base_price * (ratio ** volatility)
 
+    # ─────────────────────────────────────────────
+    # 🔁 Apply Active World Event Modifiers
+    # ─────────────────────────────────────────────
+    modifiers = world_events.get_active_modifiers()
+
+    # Global market-wide price modifier
+    global_mult = modifiers.get("global_price_mult", 1.0)
+    price *= global_mult
+
+    # Resource-specific modifier (e.g. "food_price_mult")
+    res_key = f"{resource_name}_price_mult"
+    if res_key in modifiers:
+        price *= modifiers[res_key]
+
+    # Clamp result and round for display
     return round(clamp(price, base_price * floor, base_price * ceiling), 3)
 
 

@@ -1,54 +1,112 @@
-# =========================================
-# world_events_config.yaml
-# Configuration for random global trade and market events
-# =========================================
-
-# --- Global Event Settings ---
-enabled: true                       # Enable or disable world events system
-chance_per_tick: 0.05               # 5% chance per tick to spawn a new event
-max_active_events: 3                # Limit concurrent events to avoid chaos
-default_duration_ticks: 5           # Default number of ticks if not specified
-
-# --- Event Definitions ---
-# Each event defines its economic effect, duration, and description.
-# Supported types:
-#   - market: modifies market price for a resource
-#   - production: affects production rates for a resource
-#   - population: affects population growth or decline
-#   - food: affects consumption or food price directly
+# ─────────────────────────────────────────────────────────────
+# 🌍 World Trade Events Configuration (Step 8)
+# ─────────────────────────────────────────────────────────────
+# Each event defines:
+#   • chance       – probability (0.0–1.0) checked once per world tick.
+#   • duration     – how many ticks the event lasts.
+#   • effects      – multiplicative modifiers applied while active.
+#   • message      – text broadcast via game_log() when triggered.
+#   • end_message  – optional custom message when it expires.
+# All multipliers stack multiplicatively if several events overlap.
+# Example:
+#   global_price_mult: 1.10 → raises all market prices by 10 %.
+#   food_price_mult: 0.75    → lowers food price by 25 %.
+# ─────────────────────────────────────────────────────────────
 
 events:
-  harvest_festival:
-    type: market
-    resource: food
-    modifier: -0.3                  # Decrease food price by 30%
-    duration: 5
-    message: "A bountiful harvest lowers food prices!"
 
-  mine_collapse:
-    type: production
-    resource: copper
-    modifier: -0.5                  # Reduce copper production by 50%
+  Harvest_Boom:
+    chance: 0.05
+    duration: 10
+    effects:
+      food_price_mult: 0.75
+      prestige_bonus: 0.10
+    message: "A bountiful harvest floods markets with food!"
+    end_message: "The harvest boom fades; prices return to normal."
+
+  Iron_Shortage:
+    chance: 0.03
     duration: 8
-    message: "A mine collapse disrupts copper extraction!"
+    effects:
+      iron_price_mult: 1.50
+      weapon_cost_mult: 1.25
+    message: "Mine collapses trigger an iron shortage."
+    end_message: "Iron supplies stabilize as mines reopen."
 
-  merchant_boom:
-    type: market
-    resource: all
-    modifier: +0.2                  # Increase all prices by 20%
-    duration: 3
-    message: "A surge in merchant demand raises all market prices!"
+  Prosperity_Wave:
+    chance: 0.02
+    duration: 12
+    effects:
+      global_price_mult: 1.15
+      npc_trade_rate_mult: 1.20
+    message: "A wave of prosperity boosts global trade."
+    end_message: "Prosperity wave subsides; trade normalizes."
 
-  famine:
-    type: food
-    resource: food
-    modifier: +0.6                  # Increase food price by 60%
-    duration: 4
-    message: "A famine sweeps the land, food becomes scarce!"
+  Drought_Season:
+    chance: 0.04
+    duration: 9
+    effects:
+      food_price_mult: 1.40
+      water_price_mult: 1.60
+      npc_trade_rate_mult: 0.90
+    message: "Severe drought raises food and water prices."
+    end_message: "Rain returns, easing drought pressures."
 
-  peace_dividend:
-    type: market
-    resource: stone
-    modifier: -0.2                  # Reduce stone prices (peace lowers fort demand)
+  Resource_Glutt:
+    chance: 0.03
     duration: 6
-    message: "An era of peace reduces demand for fortifications."
+    effects:
+      global_price_mult: 0.80
+      npc_trade_rate_mult: 0.90
+    message: "Oversupply hits markets, driving prices down."
+    end_message: "Surplus cleared; markets stabilize."
+
+  Gold_Rush:
+    chance: 0.02
+    duration: 10
+    effects:
+      gold_price_mult: 1.50
+      npc_trade_rate_mult: 1.30
+      prestige_bonus: 0.20
+    message: "Massive gold discoveries ignite market frenzy."
+    end_message: "Gold veins deplete and prices normalize."
+
+  Trade_Embargo:
+    chance: 0.025
+    duration: 7
+    effects:
+      global_price_mult: 1.25
+      npc_trade_rate_mult: 0.70
+    message: "Trade embargo disrupts supply lines across regions."
+    end_message: "Embargo lifted; trade routes reopen."
+
+  Technological_Breakthrough:
+    chance: 0.015
+    duration: 15
+    effects:
+      production_efficiency_mult: 1.20
+      global_price_mult: 0.90
+      npc_trade_rate_mult: 1.10
+    message: "New technologies improve global production efficiency."
+    end_message: "Technological momentum slows; output stabilizes."
+
+  Disease_Outbreak:
+    chance: 0.025
+    duration: 10
+    effects:
+      population_growth_mult: 0.85
+      food_price_mult: 1.30
+      npc_trade_rate_mult: 0.85
+    message: "Widespread illness disrupts production and trade."
+    end_message: "Outbreak contained; economy begins recovery."
+
+  War_Mobilization:
+    chance: 0.02
+    duration: 10
+    effects:
+      iron_price_mult: 1.40
+      weapon_cost_mult: 1.50
+      gold_price_mult: 1.20
+      npc_trade_rate_mult: 1.10
+    message: "Increased militarization drives demand for metals and weapons."
+    end_message: "Peace talks reduce military demand and costs."

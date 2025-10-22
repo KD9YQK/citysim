@@ -16,6 +16,9 @@ from .market_base import get_market_price, buy_from_market, sell_to_market, log_
 from .logger import ai_log
 from .utils import load_config, ticks_passed
 from .npc_trait_feedback import update_npc_traits
+from .world_events import WorldEvents
+
+world_events = WorldEvents()
 
 
 class NPCMarketBehavior(NPCEconomy):
@@ -86,6 +89,21 @@ class NPCMarketBehavior(NPCEconomy):
                 ai_log("MARKET_DEBUG", f"{npc['name']} skipping trade (cooldown active).", npc)
             return False
 
+        # ─────────────────────────────────────────────
+        # 🌍 Apply World Event Trade Modifiers
+        # ─────────────────────────────────────────────
+        modifiers = world_events.get_active_modifiers()
+
+        # Trade frequency adjustment (default 1.0)
+        trade_rate_mult = modifiers.get("npc_trade_rate_mult", 1.0)
+
+        # Adjust trade interval dynamically — higher multiplier = more frequent trades
+        if trade_rate_mult > 1.0 and random.random() < (trade_rate_mult - 1.0):
+            ai_log("MARKET_DEBUG", f"{npc['name']} influenced by global prosperity, trading early.", npc)
+        else:
+            # Keep normal pace if multiplier doesn’t trigger
+            pass
+
         econ = self.assess(npc)
         resources = econ["resources"]
         gold = econ["gold"]
@@ -121,9 +139,26 @@ class NPCMarketBehavior(NPCEconomy):
                     npc,
                 )
 
-            # --- BUY LOGIC ---
+            # ─────────────────────────────────────────────
+            # BUY LOGIC (event-aware, config-driven)
+            # ─────────────────────────────────────────────
             if ratio < buy_threshold and gold > base_price * 10:
-                qty = random.randint(10, 100)
+                # Event-aware trade volume modifier
+                trade_volume_mult = modifiers.get("npc_trade_volume_mult", 1.0)
+
+                # Pull dynamic min/max from config instead of hardcoded
+                market_cfg = load_config('npc_config.yaml')['npc_market']
+                min_buy = market_cfg.get("min_trade_quantity", 10)
+                max_buy = market_cfg.get("max_trade_quantity", 100)
+
+                qty = int(random.randint(min_buy, max_buy) * trade_volume_mult)
+
+                # Optional scarcity tightening:
+                # If global prices are inflated, buy less aggressively
+                if "global_price_mult" in modifiers and modifiers["global_price_mult"] > 1.1:
+                    buy_threshold *= 0.95  # slightly raise bar to reduce buying under scarcity
+                    qty = int(qty * 0.8)  # buy smaller batches
+
                 result = buy_from_market(npc["name"], resource, qty)
                 if result:
                     profit = (base_price - market_price) * qty
@@ -138,9 +173,21 @@ class NPCMarketBehavior(NPCEconomy):
                     traded = True
                     break
 
-            # --- SELL LOGIC ---
+            # ─────────────────────────────────────────────
+            # SELL LOGIC (event-aware, config-driven)
+            # ─────────────────────────────────────────────
             elif ratio > sell_threshold and amount > self.min_reserve_ratio * 1000:
-                qty = int(amount * self.sell_fraction)
+                trade_volume_mult = modifiers.get("npc_trade_volume_mult", 1.0)
+
+                # Maintain existing fraction logic, scale by multiplier
+                qty = int(amount * self.sell_fraction * trade_volume_mult)
+
+                # Optional scarcity tightening:
+                # If global scarcity, sell more aggressively (market is hot)
+                if "global_price_mult" in modifiers and modifiers["global_price_mult"] > 1.1:
+                    sell_threshold *= 0.95  # loosen threshold to trigger more sales
+                    qty = int(qty * 1.2)  # increase sale batch size slightly
+
                 result = sell_to_market(npc["name"], resource, qty)
                 if result:
                     profit = (market_price - base_price) * qty
