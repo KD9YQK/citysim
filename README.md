@@ -1,6 +1,6 @@
 # 🏙️ CITY SIM  
 **Persistent Economic & AI Simulation Engine**  
-**Updated:** 2025-10-21 (Post Step 8 Completion)
+**Updated:** 2025-10-21
 
 ---
 
@@ -104,30 +104,7 @@ All event parameters are modular and easily balanced via configuration.
 
 ---
 
-## 🧭 Roadmap II — Economic Balancing & Progression Tuning
 
-With all core systems complete, **Roadmap II** focuses on refining pacing, equilibrium, and sustainable gameplay.
-
-| Step | Goal | Deliverables |
-|------|------|---------------|
-| **1 – Baseline Data Audit** | Collect & visualize all resource/NPC/building data; find imbalances. | `balance_report.csv` |
-| **2 – Starting Balance Calibration** | Ensure fair early-game survival (100–200 ticks). | Test logs + updated configs |
-| **3 – Production & Yield Scaling** | Tune building outputs vs. upkeep; maintain 1.1×–1.3× surplus. | Updated `buildings_config.yaml` |
-| **4 – Upkeep & Consumption Rebalance** | Balance food/gold costs for realistic pressure. | Revised `upkeep_config.yaml` |
-| **5 – Market & Price Dynamics** | Adjust volatility & elasticity for stable markets. | Updated `resources_config.yaml` |
-| **6 – NPC Economic Strategy Tuning** | Calibrate AI trading logic and thresholds. | Updated `npc_config.yaml` |
-| **7 – Prestige & Progression Curve** | Scale prestige vs. difficulty; prevent runaway growth. | Updated `config.yaml` |
-| **8 – Dynamic Event Impact Balance** | Normalize event duration/intensity. | Tuned `world_events_config.yaml` |
-| **9 – Full Simulation Burn-In** | Validate long-term (500–2000 ticks) stability. | Aggregated data + adjustments |
-| **10 – Final Balancing & Docs** | Freeze constants; produce tuning docs. | `BALANCE_NOTES.md` + final configs |
-
----
-
-## 🔧 Current Development Phase
-All systems through **Step 8** are implemented.  
-City Sim now enters **Economic Balancing & Progression Tuning (Roadmap II)** to refine pacing, realism, and fairness for both player and NPC economies.
-
----
 
 ## 🧰 Dependencies
 
