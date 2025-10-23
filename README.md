@@ -32,7 +32,8 @@ Every game tick advances all systems — population, economy, construction, warf
 
 ---
 
-## 🗂️ Configuration & Data Files
+## CONFIGURATION
+All balance and world data are defined in YAML files under `/config`:
 
 | File | Purpose |
 |------|----------|
