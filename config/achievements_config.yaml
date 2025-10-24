@@ -1,36 +1,188 @@
-# =========================================
-# Achievements Configuration
-# =========================================
-# Defines the milestone thresholds for wealth, population,
-# prestige, and espionage-based achievements.
+# ======================================================================
+# ACHIEVEMENTS CONFIGURATION – CITY SIM
+# ======================================================================
+# All achievements are evaluated automatically each world tick by
+# game/ranking/achievements.py
 #
-# The `process_achievements()` function in achievements.py
-# reads these values each tick to determine whether a player
-# qualifies for a new title.
+# VARIABLES AVAILABLE IN EXPRESSIONS:
+#   population, max_population, prestige,
+#   troops, max_troops,
+#   spies, queued_spies, max_spies,
+#   total_resources,
+#   resources (dictionary of resource totals, e.g. resources['gold']),
+#   wars_won, wars_lost,
+#   buildings_total, academy_levels, watchtower_levels
 #
-# Achievements are cumulative: if a player meets multiple
-# thresholds in one tick, all are granted in order.
-# =========================================
+# SUPPORTED OPERATORS:
+#   ==, !=, >, >=, <, <=, +, -, *, /, %, and, or, not, in
+#
+# FIELD DEFINITIONS:
+#   metric: <variable>           → Simple threshold metric to check
+#   threshold: <number>          → Numeric limit to reach
+#   expression: <string>         → Optional advanced logic expression
+#   description: <string>        → Shown to player
+#   repeatable: <bool>           → Allow multiple unlocks
+#   reward: {gold: X, prestige: Y} → Rewards granted on unlock
+#   notify: <bool>               → Send message to player
+#   hidden: <bool>               → Hide from player until unlocked
+#
+# For metrics, use simple variable names such as:
+#   population, prestige, troops, spies, gold, food, wood, stone, copper
+# Resource metrics will be automatically pulled from resources{}.
+# ======================================================================
 
-wealth:
-  # Total resource + gold value, calculated via get_total_wealth()
-  settler: 5000          # Entry-level wealth milestone
-  coin_master: 25000     # Mid-tier wealth
-  prince: 100000         # High-tier economic mastery
+resource_gold_1:
+  name: "Coin Collector"
+  metric: gold
+  threshold: 1000
+  description: "Collect 1,000 gold."
+  reward: {prestige: 2}
+  repeatable: false
+  notify: true
+  hidden: false
 
-population:
-  # Total population milestones
-  city: 500              # First major settlement
-  metropolis: 2000       # Large city milestone
-  civilization: 5000     # Great civilization-scale population
+resource_gold_2:
+  name: "Merchant Prince"
+  metric: gold
+  threshold: 5000
+  description: "Collect 5,000 gold."
+  reward: {prestige: 10}
+  repeatable: false
+  notify: true
+  hidden: false
 
-prestige:
-  # Prestige score milestones (see ranking.py)
-  leader: 500            # Local influence
-  renowned: 2000         # Regional fame
-  legend: 10000          # Legendary status
+resource_gold_3:
+  name: "Master of Coin"
+  metric: gold
+  threshold: 10000
+  description: "Collect 10,000 gold."
+  reward: {prestige: 25, gold: 200}
+  repeatable: false
+  notify: true
+  hidden: false
 
-espionage:
-  # Successful spy missions completed
-  operative: 5           # Early espionage success
-  master: 20             # Accomplished spymaster
+resource_food_1:
+  name: "A Taste of Plenty"
+  metric: food
+  threshold: 1000
+  description: "Collect 1,000 food."
+  reward: {prestige: 2}
+  repeatable: false
+  notify: true
+  hidden: false
+
+resource_food_2:
+  name: "Granary Overflowing"
+  metric: food
+  threshold: 5000
+  description: "Collect 5,000 food."
+  reward: {prestige: 5}
+  repeatable: false
+  notify: true
+  hidden: false
+
+resource_food_3:
+  name: "Lord of Harvests"
+  metric: food
+  threshold: 20000
+  description: "Collect 20,000 food."
+  reward: {prestige: 15, gold: 100}
+  repeatable: false
+  notify: true
+  hidden: false
+
+troops_1:
+  name: "Recruiter"
+  metric: troops
+  threshold: 100
+  description: "Train 100 troops."
+  reward: {prestige: 3}
+  repeatable: false
+  notify: true
+  hidden: false
+
+troops_2:
+  name: "Commander"
+  metric: troops
+  threshold: 500
+  description: "Train 500 troops."
+  reward: {prestige: 10}
+  repeatable: false
+  notify: true
+  hidden: false
+
+troops_3:
+  name: "General of Armies"
+  metric: troops
+  threshold: 2000
+  description: "Train 2,000 troops."
+  reward: {prestige: 30, gold: 100}
+  repeatable: false
+  notify: true
+  hidden: false
+
+population_1:
+  name: "Growing Village"
+  metric: population
+  threshold: 500
+  description: "Reach 500 population."
+  reward: {prestige: 5}
+  repeatable: false
+  notify: true
+  hidden: false
+
+population_2:
+  name: "Thriving Town"
+  metric: population
+  threshold: 2000
+  description: "Reach 2,000 population."
+  reward: {prestige: 10}
+  repeatable: false
+  notify: true
+  hidden: false
+
+population_3:
+  name: "Bustling Metropolis"
+  metric: population
+  threshold: 5000
+  description: "Reach 5,000 population."
+  reward: {prestige: 25, gold: 200}
+  repeatable: false
+  notify: true
+  hidden: false
+
+war_attacker_1:
+  name: "Aggressor"
+  expression: "wars_won >= 1"
+  description: "Win your first offensive battle."
+  reward: {prestige: 5}
+  repeatable: false
+  notify: true
+  hidden: false
+
+war_attacker_2:
+  name: "Conqueror"
+  expression: "wars_won >= 5"
+  description: "Win 5 offensive battles."
+  reward: {prestige: 25, gold: 100}
+  repeatable: false
+  notify: true
+  hidden: false
+
+war_attacker_3:
+  name: "Warlord"
+  expression: "wars_won >= 15"
+  description: "Win 15 offensive battles."
+  reward: {prestige: 75, gold: 300}
+  repeatable: false
+  notify: true
+  hidden: false
+
+rare_visionary:
+  name: "The Visionary"
+  expression: "academy_levels >= 10 and prestige >= 10000"
+  description: "Reach unmatched scholarly prestige."
+  reward: {prestige: 250, gold: 500}
+  repeatable: false
+  notify: true
+  hidden: true

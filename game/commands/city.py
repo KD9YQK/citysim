@@ -6,6 +6,7 @@ from .core import register_command, format_response
 from game.utility.db import Database
 from ..models import start_building, start_training
 from game.ranking.ranking import display_rankings, display_prestige_history
+from game.ranking.achievements import show_achievements
 
 
 @register_command("status", aliases=["s"], description="Display your city’s current stats and activity.",
@@ -34,14 +35,37 @@ async def cmd_train(player_name: str, amount: str = None):
     return format_response(result)
 
 
-@register_command("rankings", aliases=["r"], description="Display global leaderboard.", category="Information")
+@register_command("rankings", aliases=["r"], description="Display global, NPC, or economy leaderboards.", category="Information")
 async def cmd_rankings(player_name: str, *args):
-    return display_rankings(player_name)
+    """
+    Display various leaderboards.
+    Usage:
+      /rankings            → Top players
+      /rankings npc        → NPC trade leaderboard
+      /rankings economy    → Combined player + NPC leaderboard
+    """
+    return display_rankings(player_name, *args)
 
 
 @register_command("history", aliases=["hs"], description="Show prestige and growth history.", category="Information")
 async def cmd_history(player_name: str, *args):
     return display_prestige_history(player_name)
+
+
+@register_command("achievements", aliases=["ac"], description="View your unlocked achievements.", category="Information")
+async def cmd_achievements(player_name: str, *args):
+    """
+    Display the player's achievements.
+    Usage:
+      /achievements         → show unlocked achievements
+      /achievements all     → include hidden ones (for testing/admins)
+    """
+    include_hidden = False
+    if args and args[0].lower() in ("all", "full", "hidden"):
+        include_hidden = True
+
+    result = show_achievements(player_name, include_hidden=include_hidden)
+    return format_response(result)
 
 
 @register_command("quit", aliases=["q"], description="Disconnect from the Telnet session.", category="General")
@@ -100,4 +124,3 @@ async def command_status_v2(player_name: str, *args):
 
     output = await draw_status(title, left, center, right, messages)
     return output
-

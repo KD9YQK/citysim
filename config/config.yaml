@@ -4,7 +4,7 @@
 
 # === General Settings ===
 tick_interval: 1                    # Game tick interval in minutes
-npc_count: 6                        # Number of NPCs to spawn in the world
+npc_count: 16                        # Number of NPCs to spawn in the world
 db_path: city_sim.db                # SQLite database path
 
 # === Troop Settings ===

@@ -178,7 +178,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS npc_trade_stats (
                 npc_name TEXT PRIMARY KEY,
                 total_profit REAL DEFAULT 0,
-                trades INTEGER DEFAULT 0
+                trades INTEGER DEFAULT 0,
+                prestige REAL DEFAULT 0
             );
             """)
             cur.close()

@@ -155,19 +155,6 @@ def get_player_rank(player_name, only_players: bool = False):
     return rank, total_players
 
 
-
-def display_rankings(player):
-    """Show the current top 10 rankings to the given player."""
-    rankings = get_rankings(10)
-    lines = [
-        "\r\nWorld Rankings (Top 10)\r\n───────────────────────────────"
-    ]
-    for i, row in enumerate(rankings, start=1):
-        lines.append(f"{i:2d}. {row['name']:<20} {row['prestige']} pts")
-    lines.append("───────────────────────────────\r\n")
-    return "\r\n".join(lines)
-
-
 def get_prestige_history(player, limit=5):
     """Return the last N prestige snapshots for a player."""
     db = Database.instance()
@@ -329,3 +316,123 @@ def sync_economy_prestige():
         adjusted = (p["prestige"] + avg_prestige) / 2
         db.execute("UPDATE players SET prestige=? WHERE id=?", (adjusted, p["id"]))
 
+
+# ───────────────────────────────────────────────────────────────
+# Extended Leaderboards (Players, NPCs, and Combined Economy)
+# ───────────────────────────────────────────────────────────────
+
+def get_player_rankings(limit: int = 10):
+    db = Database.instance()
+    rows = db.execute(
+        """
+        SELECT name, prestige
+        FROM players
+        WHERE is_npc = 0
+        ORDER BY prestige DESC
+        LIMIT ?
+        """,
+        (limit,),
+        fetchall=True,
+    )
+    return rows or []
+
+
+def format_player_rankings(rows):
+    msg = "\r\nWorld Rankings (Top Players)\r\n"
+    msg += "───────────────────────────────────────────────────────────────\r\n"
+    if not rows:
+        msg += "No players found.\r\n"
+        return msg
+
+    for i, row in enumerate(rows, start=1):
+        msg += f"{i:2}. {row['name']:<20} {row['prestige']:>8.0f} pts\r\n"
+
+    msg += "───────────────────────────────────────────────────────────────\r\n"
+    return msg
+
+
+def get_npc_rankings(limit: int = 10):
+    db = Database.instance()
+    rows = db.execute(
+        """
+        SELECT npc_name AS name, prestige, total_profit
+        FROM npc_trade_stats
+        ORDER BY prestige DESC
+        LIMIT ?
+        """,
+        (limit,),
+        fetchall=True,
+    )
+    return rows or []
+
+
+def format_npc_rankings(rows):
+    msg = "\r\nNPC Trade Leaderboard\r\n"
+    msg += "───────────────────────────────────────────────────────────────\r\n"
+    if not rows:
+        msg += "No NPC trade data available.\r\n"
+        return msg
+
+    msg += f"{'Rank':<5}{'NPC Name':<20}{'Prestige':>10}{'Profit':>12}\r\n"
+    msg += "───────────────────────────────────────────────────────────────\r\n"
+    for i, row in enumerate(rows, start=1):
+        msg += f"{i:<5}{row['name']:<20}{row['prestige']:>10.1f}{row['total_profit']:>12.0f}\r\n"
+    msg += "───────────────────────────────────────────────────────────────\r\n"
+    return msg
+
+
+def get_economy_rankings(limit: int = 10):
+    db = Database.instance()
+
+    players = db.execute(
+        "SELECT name, prestige, 'Player' AS type FROM players WHERE is_npc = 0",
+        fetchall=True,
+    ) or []
+
+    npcs = db.execute(
+        "SELECT npc_name AS name, prestige, 'NPC' AS type FROM npc_trade_stats",
+        fetchall=True,
+    ) or []
+
+    combined = players + npcs
+    combined.sort(key=lambda x: x["prestige"], reverse=True)
+    return combined[:limit]
+
+
+def format_economy_rankings(rows):
+    msg = "\r\nGlobal Power Index (Players + NPCs)\r\n"
+    msg += "───────────────────────────────────────────────────────────────────────────────\r\n"
+    if not rows:
+        msg += "No data available.\r\n"
+        return msg
+
+    msg += f"{'#':<3}{'Name':<20}{'Type':<8}{'Prestige':>10}\r\n"
+    msg += "───────────────────────────────────────────────────────────────────────────────\r\n"
+    for i, row in enumerate(rows, start=1):
+        msg += f"{i:<3}{row['name']:<20}{row['type']:<8}{row['prestige']:>10.1f}\r\n"
+    msg += "───────────────────────────────────────────────────────────────────────────────\r\n"
+    msg += "* NPC prestige derived from trade profits.\r\n"
+    return msg
+
+
+def display_rankings(player_name: str, *args):
+    """
+    Display player, NPC, or combined economy rankings.
+    Usage:
+      /rankings
+      /rankings npc
+      /rankings economy
+    """
+    mode = args[0].lower() if args else "player"
+
+    if mode in ("npc", "npcs", "trade"):
+        rows = get_npc_rankings(10)
+        return format_npc_rankings(rows)
+
+    elif mode in ("economy", "eco", "global"):
+        rows = get_economy_rankings(10)
+        return format_economy_rankings(rows)
+
+    else:
+        rows = get_player_rankings(10)
+        return format_player_rankings(rows)

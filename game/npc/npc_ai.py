@@ -230,13 +230,6 @@ class NPCAI:
         "Opportunist": {"attack_chance": 0.4, "build_chance": 0.3, "peace_chance": 0.1},
     }
 
-    BUILD_PREFERENCES = {
-        "Aggressor": ["Barracks", "Towers", "Walls"],
-        "Defender": ["Walls", "Houses", "Towers"],
-        "Economist": ["Farms", "Houses"],
-        "Opportunist": ["Barracks", "Farms", "Towers"],
-    }
-
     def __init__(self):
         self.cfg = load_config("npc_config.yaml")["npc_ai"]
         self.global_cfg = load_config("config.yaml")
@@ -257,20 +250,34 @@ class NPCAI:
             return [f"NPC_{i}" for i in range(1, 51)]
 
     def initialize(self):
-        """Ensure correct number of NPCs exist in the database."""
+        """Ensure correct number of NPCs exist; randomly choose unique names."""
         npc_target = self.global_cfg.get("npc_count", 3)
         npc_names = self.load_npc_names()
         existing = get_all_npcs()
         existing_names = [n["name"] for n in existing]
 
+        # Also exclude human player names from the pool
+        all_player_names = [p["name"] for p in list_players()]
+        taken = set(existing_names + all_player_names)
+
+        # Filter the name list to only unused ones
+        available_names = [n for n in npc_names if n not in taken]
+
         missing = npc_target - len(existing_names)
-        if missing > 0:
-            for name in npc_names[:missing]:
-                personality = random.choice(list(self.PERSONALITY_PROFILES.keys()))
-                create_player(name, is_npc=True, personality=personality)
-                ai_log("SYSTEM", f"{name} created ({personality})")
-        else:
+        if missing <= 0:
             ai_log("SYSTEM", f"Using {len(existing_names)} existing NPCs.")
+            return
+
+        # Randomize the order of remaining names
+        random.shuffle(available_names)
+
+        for name in available_names[:missing]:
+            personality = random.choice(list(self.PERSONALITY_PROFILES.keys()))
+            create_player(name, is_npc=True, personality=personality)
+            ai_log("SYSTEM", f"{name} created ({personality})")
+
+        if missing > len(available_names):
+            ai_log("SYSTEM", "Warning: Not enough unique NPC names available.")
 
     # ---------------------------------------------------
     # === DECISION LOGIC ===
