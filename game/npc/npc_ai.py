@@ -163,40 +163,28 @@ def choose_training_amount(npc):
     if not player:
         return 0
 
-    # New: prefer resource-based troop_cost dict, but fall back to old numeric value
-    troop_cost_cfg = cfg.get("troop_cost", None)
-    legacy_cost = cfg.get("resource_cost_per_troop", None)
+    troop_cost_cfg = cfg.get("troop_cost", {})
 
     res_dict = get_resources(player["id"])
     # keep original behavior: use gold if that was the single-cost assumption, else use total wealth
     total_wealth = sum(res_dict.values())
 
     # Determine cost-per-unit and affordability
-    if troop_cost_cfg and isinstance(troop_cost_cfg, dict) and len(troop_cost_cfg) > 0:
-        # Calculate how many units are affordable by each resource, then take the min
-        affordable_counts = []
-        for res_name, per_unit in troop_cost_cfg.items():
-            try:
-                per_unit_val = float(per_unit)
-            except Exception:
-                per_unit_val = 0.0
-            if per_unit_val <= 0:
-                # If a per-unit cost is zero or invalid, treat it as unlimited for affordability calc
-                continue
-            affordable_by_res = int(res_dict.get(res_name, 0) // per_unit_val)
-            affordable_counts.append(affordable_by_res)
-        if affordable_counts:
-            max_affordable = min(affordable_counts)
-        else:
-            # If all per-unit costs were zero/invalid (unlikely), fall back to total wealth heuristic
-            cost_per_unit_estimate = sum(troop_cost_cfg.values()) if troop_cost_cfg else (legacy_cost or 1)
-            max_affordable = int(total_wealth // float(cost_per_unit_estimate)) if cost_per_unit_estimate > 0 else 0
-        cost_per_unit_for_threshold = sum(troop_cost_cfg.values())
-    else:
-        # Legacy numeric behavior
-        troop_cost = float(legacy_cost) if legacy_cost is not None else 10.0
-        max_affordable = int((res_dict.get("gold", total_wealth)) // troop_cost)
-        cost_per_unit_for_threshold = troop_cost
+    # Calculate how many units are affordable by each resource, then take the min
+    affordable_counts = []
+    for res_name, per_unit in troop_cost_cfg.items():
+        try:
+            per_unit_val = float(per_unit)
+        except Exception:
+            per_unit_val = 0.0
+        if per_unit_val <= 0:
+            # If a per-unit cost is zero or invalid, treat it as unlimited for affordability calc
+            continue
+        affordable_by_res = int(res_dict.get(res_name, 0) // per_unit_val)
+        affordable_counts.append(affordable_by_res)
+
+    max_affordable = min(affordable_counts)
+    cost_per_unit_for_threshold = sum(troop_cost_cfg.values())
 
     available_troops = player["max_troops"] - player["troops"]
     if available_troops <= 0:

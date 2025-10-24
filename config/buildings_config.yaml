@@ -9,17 +9,17 @@ Walls:
   upkeep:
     gold: 0.2
   role: defence
-Towers:
-  description: Increases defending units' counterattack strength.
-  cost:
-    wood: 75.0
-    stone: 45.0
-    gold: 30.0
-  build_time: 15
-  defense_attack_bonus: 0.15
-  upkeep:
-    gold: 0.2
-  role: defence
+#Towers:
+#  description: Increases defending units' counterattack strength.
+#  cost:
+#    wood: 75.0
+#    stone: 45.0
+#    gold: 30.0
+#  build_time: 15
+#  defense_attack_bonus: 0.15
+#  upkeep:
+#    gold: 0.2
+#  role: defence
 Barracks:
   description: Increases the max troops.
   cost:
@@ -106,7 +106,7 @@ Lodges:
   build_time: 3
   wood_per_tick: 6.12
   upkeep:
-    gold: 1
+    gold: 0.2
   role: economy
 Quarries:
   description: Extracts rough stone from nearby formations for construction.
@@ -117,7 +117,7 @@ Quarries:
   build_time: 4
   stone_per_tick: 6.12
   upkeep:
-    gold: 1
+    gold: 0.2
   role: economy
 Mines:
   description: A small shaft or pit where early miners collect copper ore.
@@ -128,7 +128,7 @@ Mines:
   build_time: 5
   copper_per_tick: 6.12
   upkeep:
-    gold: 1
+    gold: 0.2
   role: economy
 Markets:
   description: Central hub for trade and barter, generating gold through commerce.
@@ -139,5 +139,5 @@ Markets:
   build_time: 5
   gold_per_tick: 1.09
   upkeep:
-    gold: 1
+    gold: 0.2
   role: economy

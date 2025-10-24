@@ -23,6 +23,101 @@ STARVATION_LOSS_RATE = UPKEEP.get("starvation_loss_rate", 0.05)
 DESERTION_LOSS_RATE = UPKEEP.get("desertion_loss_rate", 0.10)
 
 
+def calculate_upkeep(player_name: str, player_id: int) -> dict:
+    """
+    Calculate total upkeep cost per tick for a player.
+    Combines population food use, troop gold wages,
+    and per-building upkeep from buildings_config.yaml.
+    Returns a dictionary of {resource: amount}.
+    """
+
+    db = Database.instance()
+    upkeep = {}
+
+    # Load configuration constants
+    cfg = load_config("upkeep_config.yaml")
+
+    # --- Population upkeep (food) ---
+    row = db.execute(
+        "SELECT population, troops FROM players WHERE id=?",
+        (player_id,),
+        fetchone=True
+    )
+    if row:
+        food_needed = row["population"] * FOOD_PER_PERSON
+        gold_needed = row["troops"] * GOLD_PER_SOLDIER
+        if food_needed > 0:
+            upkeep["food"] = upkeep.get("food", 0) + food_needed
+        if gold_needed > 0:
+            upkeep["gold"] = upkeep.get("gold", 0) + gold_needed
+
+    # --- Building upkeep (dynamic by resource type) ---
+    bcfg = load_config("buildings_config.yaml")
+    rows = db.execute(
+        "SELECT building_name, level FROM buildings WHERE player_name=?",
+        (player_name,),
+        fetchall=True
+    )
+    for r in rows:
+        bname = r["building_name"]
+        level = r["level"]
+        bdata = bcfg.get(bname, {})
+        if "upkeep" in bdata:
+            for res, cost in bdata["upkeep"].items():
+                upkeep[res] = upkeep.get(res, 0) + (cost * level)
+
+    # Round for display
+    upkeep = {res: round(val, 2) for res, val in upkeep.items() if val > 0}
+    return upkeep
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Detailed upkeep breakdown for Strategic Readout
+# ──────────────────────────────────────────────────────────────────────────────
+
+def calculate_upkeep_breakdown(player_name: str, player_id: int) -> dict:
+    """
+    Return nested upkeep detail per resource and source for detailed status.
+    Structure:
+      {
+        'food': {'Population': 25.0},
+        'gold': {'Troops': 50.0, 'Farms': 10.0, 'Walls': 5.0}
+      }
+    """
+    db = Database.instance()
+    bcfg = load_config("buildings_config.yaml")
+
+    breakdown = {}
+
+    # --- Population & Troop upkeep ---
+    row = db.execute(
+        "SELECT population, troops FROM players WHERE id=?",
+        (player_id,),
+        fetchone=True
+    )
+    if row:
+        if row["population"] > 0:
+            breakdown.setdefault("food", {})["Population"] = round(row["population"] * FOOD_PER_PERSON, 2)
+        if row["troops"] > 0:
+            breakdown.setdefault("gold", {})["Troops"] = round(row["troops"] * GOLD_PER_SOLDIER, 2)
+
+    # --- Building upkeep by resource type ---
+    rows = db.execute(
+        "SELECT building_name, level FROM buildings WHERE player_name=?",
+        (player_name,),
+        fetchall=True
+    )
+    for r in rows:
+        bname, lvl = r["building_name"], r["level"]
+        bdata = bcfg.get(bname, {})
+        if "upkeep" in bdata:
+            for res, cost in bdata["upkeep"].items():
+                res_dict = breakdown.setdefault(res, {})
+                res_dict[bname] = round(cost * lvl, 2)
+
+    return breakdown
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Population upkeep (food)
 # ──────────────────────────────────────────────────────────────────────────────

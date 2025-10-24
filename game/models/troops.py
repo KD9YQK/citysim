@@ -8,8 +8,31 @@ from .players import get_player_by_name
 db = Database.instance()
 
 
-def adjust_troops(name, delta):
-    db.execute("UPDATE players SET troops = troops + ? WHERE name=?", (delta, name))
+def adjust_troops(player_name: str, delta: int) -> None:
+    """
+    Safely adjust a player's troop count by <delta>.
+    Ensures troop count never becomes negative.
+    """
+    db = Database.instance()
+    row = db.execute(
+        "SELECT troops FROM players WHERE name=?",
+        (player_name,),
+        fetchone=True,
+    )
+    if not row:
+        return  # player not found
+
+    current = row["troops"] or 0
+    new_total = current + delta
+
+    # Clamp to minimum 0 and optional hard cap if defined
+    if new_total < 0:
+        game_log("WARN", f"Troop underflow prevented for {player_name} "
+                         f"(delta={delta}, current={current})")
+        new_total = 0
+
+    db.execute("UPDATE players SET troops=? WHERE name=?", (new_total, player_name))
+
 
 
 def set_troops(name, value):
@@ -27,10 +50,24 @@ def start_training(player_name, amount):
         return "Invalid training amount."
 
     cfg = load_config("config.yaml")
-    max_troops = int(cfg.get("max_troops", 500))
+    base_stats = cfg.get("base_stats", {})
+    max_troops = int(base_stats.get("max_troops", 500))
 
-    if player["troops"] + amount > max_troops:
-        return f"Cannot train {amount} troops. Max allowed is {max_troops}."
+    # --- Include troops already in training ------------------------------
+    queued = db.execute(
+        "SELECT COALESCE(SUM(troops), 0) AS total "
+        "FROM training WHERE player_name=? AND status='pending'",
+        (player_name,),
+        fetchone=True,
+    )["total"]
+
+    total_future_troops = player["troops"] + queued + amount
+    if total_future_troops > max_troops:
+        return (
+            f"Cannot train {amount} troops. "
+            f"{queued} already in training. "
+            f"Max allowed is {max_troops}."
+        )
 
     population_cost_per_troop = 1
     total_pop_cost = amount * population_cost_per_troop

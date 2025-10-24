@@ -11,6 +11,34 @@ from game.utility.messaging import send_message
 from game.economy.resources_base import get_resources, consume_resources, add_resources
 
 
+def get_counterintelligence(player_name):
+    """
+    Return the total counterintelligence penalty multiplier for a player
+    based on Watchtower levels and the value defined in buildings_config.yaml.
+    Used by both espionage calculations and the status display.
+    """
+    db = Database.instance()
+    bcfg = load_config("buildings_config.yaml")
+
+    # Get Watchtower levels
+    row = db.execute(
+        """
+        SELECT SUM(level) AS total
+        FROM buildings
+        WHERE player_name=? AND building_name='Watchtowers'
+        """,
+        (player_name,),
+        fetchone=True,
+    )
+    levels = row["total"] if row and row["total"] else 0
+
+    # Get per-level penalty from config
+    wt_cfg = bcfg.get("Watchtowers", {})
+    per_level_penalty = float(wt_cfg.get("spy_defense_bonus", 0.05))  # default 5%
+
+    return levels * per_level_penalty
+
+
 def schedule_espionage(attacker, target, action):
     """Queue a new espionage operation using config.yaml values."""
     db = Database.instance()
@@ -51,23 +79,22 @@ def schedule_espionage(attacker, target, action):
 
 
 def get_spy_modifiers(attacker, target):
-    """Calculate bonuses and penalties based on Academys and Watchtowers."""
+    """Calculate bonuses and penalties based on Academies and Watchtowers."""
     db = Database.instance()
-    buildings = db.execute(
-        "SELECT owner, name, level FROM buildings WHERE owner IN (?, ?)",
-        (attacker, target),
-        fetchall=True,
-    )
 
-    academy_bonus = 0.0
-    watchtower_penalty = 0.0
-    for b in buildings:
-        name = b["name"].lower()
-        if b["owner"] == attacker and name == "academys":
-            academy_bonus += b["level"] * 0.05
-        elif b["owner"] == target and name == "watchtowers":
-            watchtower_penalty += b["level"] * 0.05
+    # Academy bonus for attacker
+    academy_row = db.execute(
+        "SELECT SUM(level) AS total FROM buildings WHERE player_name=? AND building_name='Academies'",
+        (attacker,),
+        fetchone=True,
+    )
+    academy_bonus = (academy_row["total"] or 0) * 0.05
+
+    # Watchtower penalty for defender (now via helper)
+    watchtower_penalty = get_counterintelligence(target)
+
     return academy_bonus, watchtower_penalty
+
 
 
 def queue_spy_training(player, amount):
@@ -79,7 +106,7 @@ def queue_spy_training(player, amount):
 
     # Check Academy levels
     academy = db.execute(
-        "SELECT SUM(level) AS total FROM buildings WHERE owner=? AND name='Academies'",
+        "SELECT SUM(level) AS total FROM buildings WHERE player_name=? AND building_name='Academies'",
         (player,),
         fetchone=True,
     )
@@ -98,8 +125,22 @@ def queue_spy_training(player, amount):
         missing = ", ".join(f"{r}: {c}" for r, c in total_cost.items())
         return f"Not enough resources to train spies. Required: {missing}.\r\n"
 
-    if data["spies"] + amount > max_spies:
-        return f"You cannot train more spies. Max allowed: {max_spies}.\r\n"
+    # --- Check current and in-training spies ----------------------------------
+    # Count all spies already queued for training but not yet processed
+    queued = db.execute(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM spy_training "
+        "WHERE player=? AND processed=0",
+        (player,),
+        fetchone=True,
+    )["total"]
+
+    total_future_spies = data["spies"] + queued + amount
+    if total_future_spies > max_spies:
+        return (
+            f"You cannot train {amount} spies. "
+            f"{queued} already in training. "
+            f"Max allowed: {max_spies}.\r\n"
+        )
 
     db.execute(
         """
@@ -166,9 +207,9 @@ def handle_success(attacker, target, action):
         return
 
     if action == "scout":
-        buildings = db.execute("SELECT name, level FROM buildings WHERE owner=?", (target,), fetchall=True)
+        buildings = db.execute("SELECT building_name, level FROM buildings WHERE player_name=?", (target,), fetchall=True)
         res_dict = get_resources(target_data["id"])
-        building_str = ", ".join(f"{b['name']}(Lv{b['level']})" for b in buildings) or "None"
+        building_str = ", ".join(f"{b['building_name']}(Lv{b['level']})" for b in buildings) or "None"
         res_str = ", ".join(f"{k}: {int(v)}" for k, v in res_dict.items())
 
         report = (
@@ -228,3 +269,77 @@ def handle_failure(attacker, target, action):
     spies = db.execute("SELECT spies FROM players WHERE name=?", (attacker,), fetchone=True)
     if spies and spies["spies"] > 0:
         db.execute("UPDATE players SET spies = spies - 1 WHERE name=?", (attacker,))
+
+
+# ───────────────────────────────────────────────────────────────
+# Strategic Status: Spy Network Data
+# ───────────────────────────────────────────────────────────────
+
+def get_spy_intel(player_name: str) -> list:
+    """
+    Return a summary of stored intelligence reports for the player's spies.
+    Output:
+      [{'target': 'Ironspire', 'age': 3}, {'target': 'Steel_Heart', 'age': 1}]
+    """
+    db = Database.instance()
+    cfg = load_config("config.yaml")
+    tick_interval = cfg.get("tick_interval", 1)
+
+    rows = db.execute(
+        """
+        SELECT target, timestamp
+        FROM intel_reports
+        WHERE owner=?
+        ORDER BY timestamp DESC
+        LIMIT 5
+        """,
+        (player_name,),
+        fetchall=True,
+    )
+
+    results = []
+    for r in rows or []:
+        age_ticks = int((time.time() - r["timestamp"]) / tick_interval)
+        results.append({"target": r["target"], "age": age_ticks})
+    return results
+
+
+def get_spy_history(player_name: str) -> list:
+    """
+    Return recent espionage missions (completed, processed=1).
+    Output:
+      [{'target': 'Steel_Heart', 'action': 'Steal', 'success': True, 'age': 4}]
+    """
+    db = Database.instance()
+    cfg = load_config("config.yaml")
+    tick_interval = cfg.get("tick_interval", 1)
+
+    rows = db.execute(
+        """
+        SELECT DISTINCT target, action, start_time,
+            CASE
+               WHEN message LIKE '%failed%' THEN 0
+               ELSE 1
+            END AS success
+        FROM espionage
+        LEFT JOIN messages ON espionage.attacker = messages.player_name
+        WHERE espionage.attacker=? AND espionage.processed=1
+        GROUP BY target, action, start_time
+        ORDER BY espionage.start_time DESC
+        LIMIT 5
+        """,
+        (player_name,),
+        fetchall=True,
+    )
+
+    results = []
+    for r in rows or []:
+        age_ticks = int((time.time() - r["start_time"]) / tick_interval)
+        success_value = r["success"] if "success" in r.keys() else 1
+        results.append({
+            "target": r["target"],
+            "action": r["action"].capitalize(),
+            "success": bool(success_value),
+            "age": age_ticks
+        })
+    return results

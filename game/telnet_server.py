@@ -8,6 +8,8 @@ from game.utility.messaging import clients, clients_lock
 from game.utility.utils import load_config
 from .world import main_loop
 from game.utility.lore import get_random_lore
+from game.utility.utils import validate_player_name
+
 
 config = load_config()
 ip_counts = {}
@@ -117,22 +119,31 @@ async def handle_client(reader, writer):
         # Decode safely
         name = cleaned.decode(errors='ignore').strip()
 
-        # If name still starts with a stray non-alphanumeric, strip it
-        if name and not name[0].isalnum():
-            name = name[1:]
+        # Validate and normalize using shared utility
+        from game.utility.db import Database
+        db = Database.instance()
+        name_lower = name.lower()
+        existing = db.execute(
+            "SELECT name FROM players WHERE LOWER(name)=?",
+            (name_lower,),
+            fetchone=True
+        )
 
-        # Handle empty names
-        if not name:
-            await session.send("Invalid or empty name. Please reconnect or re-enter.\r\n")
-            return
+        if existing:
+            # Player already exists — treat as login, not creation
+            session.name = existing["name"]  # preserve original capitalization
+        else:
+            # Validate and create new player
+            try:
+                session.name = validate_player_name(name)
+            except ValueError as e:
+                writer.write(f"Invalid name: {e}\r\n".encode())
+                await writer.drain()
+                return
 
-        if not name:
-            writer.write(b"Invalid or empty name. Disconnecting.\r\n")
-            await writer.drain()
-            return
-
-        session.name = name
+        # Create or ensure player exists in DB
         ensure_player(session.name)
+
         await session.send(f"\r\nHello {session.name}! Type 'help' for commands.\r\n")
 
         while session.active:

@@ -102,6 +102,60 @@ def get_rankings(limit=10):
     return results
 
 
+def get_player_rank(player_name, only_players: bool = False):
+    """
+    Return a tuple (rank, total_players).
+
+    rank → prestige rank (1-based, DESC order)
+    total_players → total count of players (configurable to include/exclude NPCs)
+
+    Args:
+        player_name (str): Name of the player to look up.
+        only_players (bool): If True, exclude NPCs from ranking and totals.
+
+    If player not found, rank defaults to total_players (simulate last place).
+    """
+    db = Database.instance()
+
+    # --- Total players count ---
+    if only_players:
+        total_row = db.execute("SELECT COUNT(*) AS total FROM players WHERE is_npc=0", fetchone=True)
+    else:
+        total_row = db.execute("SELECT COUNT(*) AS total FROM players", fetchone=True)
+
+    total_players = total_row["total"] if total_row and total_row["total"] else 0
+
+    # --- Ranking logic ---
+    if only_players:
+        rank_query = """
+            SELECT rank FROM (
+                SELECT name, RANK() OVER (ORDER BY prestige DESC) AS rank
+                FROM players
+                WHERE is_npc=0
+            )
+            WHERE name=?
+        """
+    else:
+        rank_query = """
+            SELECT rank FROM (
+                SELECT name, RANK() OVER (ORDER BY prestige DESC) AS rank
+                FROM players
+            )
+            WHERE name=?
+        """
+
+    row = db.execute(rank_query, (player_name,), fetchone=True)
+
+    # --- Fallback to last place if not found ---
+    if row and row["rank"]:
+        rank = row["rank"]
+    else:
+        rank = total_players or 1
+
+    return rank, total_players
+
+
+
 def display_rankings(player):
     """Show the current top 10 rankings to the given player."""
     rankings = get_rankings(10)

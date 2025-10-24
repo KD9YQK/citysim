@@ -37,7 +37,6 @@ def create_player(name, is_npc=False, is_admin=False, personality=None):
     max_pop = int(base.get("max_population", 100))
     def_bonus = float(base.get("defense_bonus", 1.0))
     atk_bonus = float(base.get("defense_attack_bonus", 0.0))
-
     starting_population = int(cfg.get("starting_population", 50))
     starting_troops = int(cfg.get("starting_troops", 50))
 
@@ -45,7 +44,7 @@ def create_player(name, is_npc=False, is_admin=False, personality=None):
         INSERT INTO players (
             name, is_npc, is_admin,
             troops, population,
-            max_troops, max_population, defense_bonus, defense_attack_bonus,
+            max_troops, max_population, defense_bonus, attack_bonus,
             personality
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -99,6 +98,43 @@ def update_population(player_name):
     )
 
 
+# ───────────────────────────────────────────────────────────────
+# Population Growth Breakdown (Strategic Readout)
+# ───────────────────────────────────────────────────────────────
+def get_population_growth_breakdown(player_name: str) -> dict:
+    """
+    Return a breakdown of population gain sources for the player.
+    Output example:
+      {
+        'base': 1.0,
+        'buildings': {'Farms': 0.5, 'Housing': 0.3}
+      }
+
+    The total growth rate is the sum of all entries.
+    """
+    db = Database.instance()
+    cfg = load_config("config.yaml")
+    bcfg = load_config("buildings_config.yaml")
+
+    base_growth = float(cfg.get("population_growth_rate", 1.0))
+    breakdown = {"base": base_growth, "buildings": {}}
+
+    rows = db.execute(
+        "SELECT building_name, level FROM buildings WHERE player_name=?",
+        (player_name,),
+        fetchall=True,
+    )
+
+    for r in rows or []:
+        bname, lvl = r["building_name"], r["level"]
+        bdata = bcfg.get(bname, {})
+        if "population_growth_bonus" in bdata:
+            val = bdata["population_growth_bonus"] * lvl
+            breakdown["buildings"][bname] = round(val, 2)
+
+    return breakdown
+
+
 def gain_resources_from_population(player_name):
     """Add resources per tick based on population."""
     player = get_player_by_name(player_name)
@@ -106,9 +142,10 @@ def gain_resources_from_population(player_name):
         return
 
     pop = player["population"]
-    # Example: convert population into food or gold
-    tax = 0.05
-    delta = {"gold": pop * tax}
+    # Use tax rate from config.yaml (default 0.05)
+    cfg = load_config("config.yaml")
+    tax_rate = cfg.get("population_tax_rate", 0.05)
+    delta = {"gold": pop * tax_rate}
     add_resources(player["id"], delta)
 
 
@@ -121,7 +158,6 @@ def recalculate_all_player_stats():
     base_max_troops = int(base.get("max_troops", 500))
     base_max_population = int(base.get("max_population", 100))
     base_defense_bonus = float(base.get("defense_bonus", 1.0))
-    base_defense_attack_bonus = float(base.get("defense_attack_bonus", 0.0))
     base_attack_bonus = float(base.get("attack_bonus", 0.0))
     players = db.execute("SELECT name FROM players", fetchall=True)
 
@@ -134,11 +170,10 @@ def recalculate_all_player_stats():
             SET max_troops = ?,
                 max_population = ?,
                 defense_bonus = ?,
-                defense_attack_bonus = ?,
                 attack_bonus = ?
             WHERE name = ?
         """, (
-            base_max_troops, base_max_population, base_defense_bonus, base_defense_attack_bonus, base_attack_bonus,
+            base_max_troops, base_max_population, base_defense_bonus, base_attack_bonus,
             name))
 
         # Apply bonuses from buildings
@@ -150,7 +185,6 @@ def recalculate_all_player_stats():
 
         total_def_bonus = 0.0
         total_atk_bonus = 0.0
-        total_def_atk_bonus = 0.0
         total_troop_bonus = 0
         total_pop_bonus = 0
 
@@ -162,7 +196,6 @@ def recalculate_all_player_stats():
             bconf = bcfg[bname]
 
             total_def_bonus += bconf.get("defense_bonus", 0.0) * level
-            total_def_atk_bonus += bconf.get("defense_attack_bonus", 0.0) * level
             total_troop_bonus += bconf.get("troop_cap_bonus", 0) * level
             total_pop_bonus += bconf.get("max_population_bonus", 0) * level
             total_atk_bonus += bconf.get("attack_bonus_per_level", 0.0) * level
@@ -170,12 +203,11 @@ def recalculate_all_player_stats():
         db.execute("""
             UPDATE players
             SET defense_bonus = defense_bonus + ?,
-                defense_attack_bonus = defense_attack_bonus + ?,
                 max_troops = max_troops + ?,
                 max_population = max_population + ?,
                 attack_bonus = attack_bonus + ?
             WHERE name = ?
-        """, (total_def_bonus, total_def_atk_bonus, total_troop_bonus, total_pop_bonus, total_atk_bonus, name))
+        """, (total_def_bonus, total_troop_bonus, total_pop_bonus, total_atk_bonus, name))
 
     game_log("WORLD", "Player stats recalculated using base values from config.yaml.")
 

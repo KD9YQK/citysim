@@ -1,4 +1,6 @@
 import textwrap
+from game.commands.status_data import get_status_data, get_detailed_status_data
+from game.commands.status_formatter import format_status, format_detailed_status
 
 
 async def draw_status(title=None, left=None, center=None, right=None, messages=None):
@@ -30,7 +32,7 @@ async def draw_status(title=None, left=None, center=None, right=None, messages=N
     out.append(_border("bottom", widths))
 
     # --- Messages footer ---
-    msg_width = sum(widths) + (len(widths) * 3) + 1
+    msg_width = sum(widths) + (len(widths) * 3) - 1
     out.append("┌" + "─" * msg_width + "┐")
     out.append(("│ Messages:".ljust(msg_width + 1)) + "│")
     if messages:
@@ -88,3 +90,26 @@ def _row(cols, widths):
         # note: 1 space padding left/right per column, always ends with │
         lines.append("│ " + " │ ".join(cells) + " │")
     return "\r\n".join(lines)
+
+
+# ───────────────────────────────────────────────
+# Strategic Detailed Renderer
+# ───────────────────────────────────────────────
+async def render_status(session, player_name: str, detailed: bool = False):
+    """
+    Build and render either the standard or the detailed strategic
+    status display. Uses the existing draw_status() for layout.
+    """
+    if detailed:
+        data = get_detailed_status_data(player_name)
+        left, center, right, messages = format_detailed_status(data)
+        title = ["CITY OF " + player_name.upper(),
+                 "ECONOMY & POPULATION",
+                 "WAR ROOM"]
+    else:
+        data = get_status_data(player_name)
+        left, center, right, messages = format_status(data)
+        title = ["CITY STATUS", "ECONOMY", "OPERATIONS"]
+
+    rendered = await draw_status(title, left, center, right, messages)
+    await session.send(rendered)
