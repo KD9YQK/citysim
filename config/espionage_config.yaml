@@ -1,0 +1,65 @@
+#===============================================================
+# City Sim – Espionage Configuration
+#---------------------------------------------------------------
+# Unified espionage configuration
+#
+# Sections:
+#   train:   spy training parameters
+#   missions: individual mission settings
+#
+# Notes:
+# - mission_resource_cost replaces "cost" and handles gold + other resources.
+# - morale and happiness affect success automatically (in code).
+#===============================================================
+
+espionage:
+  # ─────────────────────────────────────────────
+  # Training Parameters
+  # ─────────────────────────────────────────────
+  train:
+    # Base duration (ticks) to complete spy training
+    time: 10
+    # Resource cost PER SPY (can include gold or materials)
+    resource_cost:
+      gold: 100
+      iron: 5
+
+  # ─────────────────────────────────────────────
+  # Mission Parameters
+  # ─────────────────────────────────────────────
+  missions:
+    scout:
+      mission_resource_cost: { gold: 50 }
+      duration: 3
+      success_chance: 0.6
+
+    steal:
+      mission_resource_cost: { gold: 100 }
+      duration: 4
+      success_chance: 0.5
+      reward:
+        steal_resources_percent: 0.1
+
+    sabotage:
+      mission_resource_cost: { gold: 150 }
+      duration: 5
+      success_chance: 0.45
+      reward:
+        sabotage_building_damage: 1
+
+    propaganda:
+      mission_resource_cost: { gold: 150 }
+      duration: 5
+      success_chance: 0.5
+
+    corrupt_officials:
+      mission_resource_cost: { gold: 200 }
+      duration: 6
+      success_chance: 0.4
+      reward:
+        corrupt_officials_gold: 0.05
+
+    industrial_espionage:
+      mission_resource_cost: { gold: 250 }
+      duration: 7
+      success_chance: 0.35

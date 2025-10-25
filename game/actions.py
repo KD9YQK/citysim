@@ -6,6 +6,7 @@ from .models import get_player_by_name, adjust_troops
 from game.utility.utils import load_config, ticks_passed, ticks_to_minutes
 from game.utility.logger import game_log
 from game.economy.resources_base import get_resources, consume_resources, add_resources
+from game.espionage import get_intel_advantage
 
 
 # ----------------------------------------------------------------------
@@ -99,9 +100,19 @@ def resolve_battle(attacker_name, defender_name, attacking_troops, attack_id):
     gar_troops = max(1, df.get("troops", 0))
     attack_buff = float(atk.get("attack_buff", 1.0))  # default to 1.0
 
-    # --- POWER CALCULATIONS ---
-    attack_power = attacking_troops * troop_attack_power * attack_buff * random.uniform(1 - rand_factor, 1 + rand_factor)
+    # --- POWER CALCULATIONS WITH INTEL ADVANTAGE ---
+    attack_power = attacking_troops * troop_attack_power * attack_buff * random.uniform(1 - rand_factor,
+                                                                                        1 + rand_factor)
     defense_power = gar_troops * troop_defense_power * defense_buff * random.uniform(1 - rand_factor, 1 + rand_factor)
+
+    # Espionage integration: get separate attack/defense modifiers
+    intel_attack_mod, intel_defense_mod = get_intel_advantage(attacker_name, defender_name)
+
+    # Apply attacker intel (boost attack) and defender intel/vigilance (boost defense)
+    attack_power *= intel_attack_mod
+    defense_power *= intel_defense_mod
+
+    game_log("WAR", f"Intel mods {attacker_name}->{defender_name}: atk x{intel_attack_mod}, def x{intel_defense_mod}")
 
     ratio = attack_power / (defense_power + 1e-12)
     outcome = "attacker" if attack_power > defense_power else "defender"

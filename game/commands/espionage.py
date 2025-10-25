@@ -10,8 +10,8 @@ from game.utility.db import Database
 
 @register_command("train_spy", aliases=["ts"], description="Train spies (requires Academys).", category="Espionage")
 async def cmd_train_spy(player_name: str, amount: str = None):
-    if not amount or not amount.isdigit():
-        return format_response("Usage: train_spy <amount>", success=False)
+    if amount == "help" or not amount or not amount.isdigit():
+        return format_response("Usage: train_spy <amount> — queue spy training.", success=False)
     num = int(amount)
     if num <= 0:
         return format_response("Amount must be greater than zero.", success=False)
@@ -20,13 +20,15 @@ async def cmd_train_spy(player_name: str, amount: str = None):
 
 @register_command("spy", description="Conduct espionage on a target (scout, steal, sabotage).", category="Espionage")
 async def cmd_spy(player_name: str, target: str = None, action: str = None):
-    if not target or not action:
+    if target == "help" or action == "help" or not target or not action:
         return format_response("Usage: spy <target> <scout|steal|sabotage>", success=False)
     return schedule_espionage(player_name, target, action)
 
 
 @register_command("spy_reports", aliases=["sr"], description="View your latest spy intelligence reports.", category="Espionage")
-async def cmd_spy_reports(player_name: str):
+async def cmd_spy_reports(player_name: str, *args):
+    if args and args[0] == "help":
+        return format_response("Usage: spy_reports — displays recent intel reports.")
     return await command_spy_reports(player_name)
 
 

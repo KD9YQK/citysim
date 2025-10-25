@@ -200,6 +200,13 @@ class Database:
                 event_name TEXT PRIMARY KEY,
                 ticks_remaining INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS relations (
+                player1_id INTEGER NOT NULL,
+                player2_id INTEGER NOT NULL,
+                trust INTEGER DEFAULT 0,
+                last_update INTEGER,
+                UNIQUE(player1_id, player2_id)
+            );
             """)
             cur.close()
 

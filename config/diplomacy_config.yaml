@@ -1,0 +1,32 @@
+# ==========================================================
+# DIPLOMACY CONFIGURATION  –  MODEL 1.5
+# ----------------------------------------------------------
+# Purpose:
+#   Keeps diplomacy lightweight but believable.
+#   Tracks trust between players (-100 to +100).
+#   Adds penalties for early or "forced" peace.
+#   NPCs and systems can reference trust values for behavior.
+# ----------------------------------------------------------
+
+diplomacy:
+  # === War and Peace Effects ===
+  war_trust_penalty: 40        # Trust reduction when war begins.
+  peace_trust_reset: -10       # Normal trust after voluntary peace.
+  forced_peace_penalty: 10     # Extra penalty for ending war too early.
+
+  # === Timing Rules ===
+  min_war_duration: 5          # War must last this many ticks before peace avoids penalty.
+  peace_cooldown: 10           # Can't re-declare war for this many ticks after peace.
+
+  # === Trust Categories (for display & AI reference) ===
+  trust_thresholds:
+    hostile: -50               # Below this = enemy territory.
+    wary: -10                  # Uneasy peace, likely to spark again.
+    neutral: 0                 # Baseline.
+    friendly: 25               # Cooperative relations possible.
+    ally: 50                   # Deep trust.
+
+  # === Logging & Feedback ===
+  log_events: true             # If true, game_log() records trust shifts.
+  notify_players: true         # If true, send_message() tells both sides of change.
+# ==========================================================

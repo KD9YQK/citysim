@@ -1,12 +1,12 @@
 import asyncio
 import traceback
+import time
 from game.utility.db import Database
 from .models import list_players, update_population, gain_resources_from_population, recalculate_all_player_stats
 from .actions import process_training_jobs, process_building_jobs, resolve_battle
 from game.npc.npc_ai import NPCAI
 from game.utility.utils import load_config, ticks_passed
 from game.ranking.ranking import update_all_prestige, update_trade_leaderboard, update_economy_leaderboard
-from .espionage import process_espionage_jobs, process_spy_training_jobs
 from game.utility.logger import game_log
 from game.ranking.achievements import process_achievements
 from game.events.random_events import process_random_events
@@ -16,6 +16,7 @@ from game.npc.npc_trait_feedback import print_npc_traits
 from game.events.world_events import WorldEvents
 from game.economy.economy import gain_resources_from_buildings
 from game.npc.npc_cycle_manager import NPCCycleManager
+from game.espionage import process_espionage_jobs, process_spy_training_jobs, decay_spy_influence
 
 
 # ─────────────────────────────────────────────
@@ -94,10 +95,6 @@ async def main_loop():
     # ─────────────────────────────────────────────
     events = WorldEvents()
 
-    def get_world_modifiers():
-        """Allow other systems to access current event modifiers."""
-        return events.get_active_modifiers()
-
     while True:
         cfg = load_config("config.yaml")
         tick_minutes = cfg.get("tick_interval", 1)
@@ -125,8 +122,24 @@ async def main_loop():
                 gain_resources_from_buildings(p["name"], resource_mult=production_mult)
 
             process_all_upkeep()
-            process_espionage_jobs()
+            # ─────────────────────────────────────────────
+            # Espionage Tick Processing
+            # ─────────────────────────────────────────────
             process_spy_training_jobs()
+
+            # Optimization: ensure espionage jobs are only evaluated once per tick.
+            # (prevents redundant re-processing when tick timers overlap)
+            def run_espionage_jobs_once():
+                """Run espionage jobs only once per tick."""
+                db = Database.instance()
+                if getattr(run_espionage_jobs_once, "_last_tick", None) != int(time.time() // tick_seconds):
+                    process_espionage_jobs()
+                    run_espionage_jobs_once._last_tick = int(time.time() // tick_seconds)
+
+            run_espionage_jobs_once()
+
+            # Gradual morale/happiness recovery after propaganda or corruption
+            decay_spy_influence()
 
             update_trade_prestige()
             game_log("PRESTIGE", "Global trade prestige recalculated.", None)
