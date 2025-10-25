@@ -82,7 +82,7 @@ async def main_loop():
             process_random_events()
 
             npc_tick += 1
-            if npc_tick >= 5:
+            if npc_tick >= 0:
                 npc_tick = 0
 
                 # ─────────────────────────────────────────────

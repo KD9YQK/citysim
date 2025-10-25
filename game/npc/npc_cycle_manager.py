@@ -15,6 +15,7 @@ class NPCCycleManager:
     def __init__(self):
         self.db = Database.instance()
         self.cfg = load_config("npc_config.yaml")["npc_ai"].get("sleep_cycles", {})
+        print(self.cfg)
 
     def initialize_npc_cycle(self, npc):
         """

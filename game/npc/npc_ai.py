@@ -19,6 +19,7 @@ from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
 from game.economy.market_base import cleanup_trade_history, update_trade_prestige
 from .npc_trait_feedback import decay_all_traits
+from game.npc.npc_cycle_manager import NPCCycleManager
 from game.events.world_events import WorldEvents
 
 market_behavior = NPCMarketBehavior(debug=False)
@@ -340,6 +341,23 @@ class NPCAI:
 
         if missing > len(available_names):
             ai_log("SYSTEM", "Warning: Not enough unique NPC names available.")
+
+        # ---------------------------------------------------
+        # === NPC Sleep Cycle Initialization ===
+        # ---------------------------------------------------
+        # Ensures all existing and newly created NPCs have a cycle entry.
+        cycle_mgr = NPCCycleManager()
+        npcs = get_all_npcs()
+        for npc_row in npcs:
+            npc_id = npc_row["id"]
+            exists = self.db.execute(
+                "SELECT npc_id FROM npc_cycles WHERE npc_id=?",
+                (npc_id,),
+                fetchone=True,
+            )
+            if not exists:
+                cycle_mgr.initialize_npc_cycle(npc_row)
+                ai_log("SYSTEM", f"Initialized sleep cycle for {npc_row['name']}.")
 
     # ---------------------------------------------------
     # === DECISION LOGIC ===
