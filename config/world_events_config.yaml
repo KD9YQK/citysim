@@ -1,112 +1,71 @@
-# ─────────────────────────────────────────────────────────────
-# 🌍 World Trade Events Configuration (Step 8)
-# ─────────────────────────────────────────────────────────────
-# Each event defines:
-#   • chance       – probability (0.0–1.0) checked once per world tick.
-#   • duration     – how many ticks the event lasts.
-#   • effects      – multiplicative modifiers applied while active.
-#   • message      – text broadcast via game_log() when triggered.
-#   • end_message  – optional custom message when it expires.
-# All multipliers stack multiplicatively if several events overlap.
-# Example:
-#   global_price_mult: 1.10 → raises all market prices by 10 %.
-#   food_price_mult: 0.75    → lowers food price by 25 %.
-# ─────────────────────────────────────────────────────────────
+#===============================================================
+# City Sim – World Events Configuration
+#---------------------------------------------------------------
+# Global or regional events affecting economy, morale, and production.
+#
+# Key effect groups:
+#   effects:      Economic modifiers (global or market-wide)
+#   mood_effects: Social modifiers for happiness/morale/taxation
+#   production_mult: NEW — affects building output (0.8 = famine, 1.2 = prosperity)
+#
+# All multipliers default to 1.0 and stack multiplicatively.
+#===============================================================
 
 events:
-
-  Harvest_Boom:
-    chance: 0.05
-    duration: 10
-    effects:
-      food_price_mult: 0.75
-      prestige_bonus: 0.10
-    message: "A bountiful harvest floods markets with food!"
-    end_message: "The harvest boom fades; prices return to normal."
-
-  Iron_Shortage:
+  harvest_festival:
     chance: 0.03
-    duration: 8
-    effects:
-      iron_price_mult: 1.50
-      weapon_cost_mult: 1.25
-    message: "Mine collapses trigger an iron shortage."
-    end_message: "Iron supplies stabilize as mines reopen."
+    duration: 5
+    message: "The harvest is bountiful! Productivity surges across the realm."
+    end_message: "The harvest festival ends; fields quiet down."
+    effects: {}
+    mood_effects:
+      happiness_mult: 1.2
+      morale_volatility_mult: 0.9
+      tax_efficiency_mult: 1.05
+      production_mult: 1.15   # new: buildings output more
 
-  Prosperity_Wave:
+  tax_scandal:
     chance: 0.02
-    duration: 12
-    effects:
-      global_price_mult: 1.15
-      npc_trade_rate_mult: 1.20
-    message: "A wave of prosperity boosts global trade."
-    end_message: "Prosperity wave subsides; trade normalizes."
+    duration: 4
+    message: "A tax scandal rocks public trust!"
+    end_message: "The scandal fades from memory."
+    effects: {}
+    mood_effects:
+      happiness_mult: 0.8
+      morale_volatility_mult: 1.3
+      tax_efficiency_mult: 0.85
+      production_mult: 0.9    # economy slows due to unrest
 
-  Drought_Season:
-    chance: 0.04
-    duration: 9
-    effects:
-      food_price_mult: 1.40
-      water_price_mult: 1.60
-      npc_trade_rate_mult: 0.90
-    message: "Severe drought raises food and water prices."
-    end_message: "Rain returns, easing drought pressures."
-
-  Resource_Glutt:
-    chance: 0.03
+  drought:
+    chance: 0.02
     duration: 6
-    effects:
-      global_price_mult: 0.80
-      npc_trade_rate_mult: 0.90
-    message: "Oversupply hits markets, driving prices down."
-    end_message: "Surplus cleared; markets stabilize."
+    message: "A severe drought hits farms and rivers dry up."
+    end_message: "Rain returns; crops slowly recover."
+    effects: {}
+    mood_effects:
+      happiness_mult: 0.9
+      morale_volatility_mult: 1.1
+      production_mult: 0.75   # less food and resource output
 
-  Gold_Rush:
+  golden_age:
+    chance: 0.01
+    duration: 8
+    message: "A golden age dawns — innovation and prosperity abound!"
+    end_message: "The golden age gradually fades."
+    effects: {}
+    mood_effects:
+      happiness_mult: 1.3
+      morale_volatility_mult: 0.8
+      tax_efficiency_mult: 1.1
+      production_mult: 1.25   # all output boosted
+
+  protest_movement:
     chance: 0.02
-    duration: 10
-    effects:
-      gold_price_mult: 1.50
-      npc_trade_rate_mult: 1.30
-      prestige_bonus: 0.20
-    message: "Massive gold discoveries ignite market frenzy."
-    end_message: "Gold veins deplete and prices normalize."
-
-  Trade_Embargo:
-    chance: 0.025
-    duration: 7
-    effects:
-      global_price_mult: 1.25
-      npc_trade_rate_mult: 0.70
-    message: "Trade embargo disrupts supply lines across regions."
-    end_message: "Embargo lifted; trade routes reopen."
-
-  Technological_Breakthrough:
-    chance: 0.015
-    duration: 15
-    effects:
-      production_efficiency_mult: 1.20
-      global_price_mult: 0.90
-      npc_trade_rate_mult: 1.10
-    message: "New technologies improve global production efficiency."
-    end_message: "Technological momentum slows; output stabilizes."
-
-  Disease_Outbreak:
-    chance: 0.025
-    duration: 10
-    effects:
-      population_growth_mult: 0.85
-      food_price_mult: 1.30
-      npc_trade_rate_mult: 0.85
-    message: "Widespread illness disrupts production and trade."
-    end_message: "Outbreak contained; economy begins recovery."
-
-  War_Mobilization:
-    chance: 0.02
-    duration: 10
-    effects:
-      iron_price_mult: 1.40
-      weapon_cost_mult: 1.50
-      gold_price_mult: 1.20
-      npc_trade_rate_mult: 1.10
-    message: "Increased militarization drives demand for metals and weapons."
-    end_message: "Peace talks reduce military demand and costs."
+    duration: 5
+    message: "Citizens protest corruption and high taxes!"
+    end_message: "The protests disperse and life resumes."
+    effects: {}
+    mood_effects:
+      happiness_mult: 0.7
+      morale_volatility_mult: 1.4
+      production_mult: 0.85   # work slowdowns reduce output

@@ -135,17 +135,25 @@ def get_population_growth_breakdown(player_name: str) -> dict:
     return breakdown
 
 
-def gain_resources_from_population(player_name):
-    """Add resources per tick based on population."""
+def gain_resources_from_population(player_name, gold_mult=1.0, happiness_mult=1.0):
+    """
+    Add resources per tick based on population and modifiers.
+    gold_mult: multiplier for tax yield (policy/events)
+    happiness_mult: future hook for happiness effects
+    """
     player = get_player_by_name(player_name)
     if not player:
         return
 
     pop = player["population"]
-    # Use tax rate from config.yaml (default 0.05)
     cfg = load_config("config.yaml")
     tax_rate = cfg.get("population_tax_rate", 0.05)
-    delta = {"gold": pop * tax_rate}
+
+    # Base gold yield, modified by policy and world mood
+    base_gold = pop * tax_rate
+    total_gold = base_gold * gold_mult * happiness_mult
+
+    delta = {"gold": total_gold}
     add_resources(player["id"], delta)
 
 

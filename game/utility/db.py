@@ -51,7 +51,10 @@ class Database:
                 spies INTEGER DEFAULT 0,
                 trait_greed REAL DEFAULT 1.0,
                 trait_risk REAL DEFAULT 1.0,
-                city_phase TEXT DEFAULT 'early'
+                city_phase TEXT DEFAULT 'early',
+                tax_policy TEXT DEFAULT 'balanced',
+                happiness REAL DEFAULT 1.0,
+                morale REAL DEFAULT 1.0
             );
 
             CREATE TABLE IF NOT EXISTS wars (
@@ -192,6 +195,10 @@ class Database:
                 sleep_duration INTEGER DEFAULT 5,       -- how long current sleep phase lasts (ticks)
                 last_state_change REAL DEFAULT (strftime('%s','now')),
                 FOREIGN KEY(npc_id) REFERENCES players(id)
+            );
+            CREATE TABLE IF NOT EXISTS world_events_active (
+                event_name TEXT PRIMARY KEY,
+                ticks_remaining INTEGER NOT NULL
             );
             """)
             cur.close()

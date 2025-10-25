@@ -1,0 +1,49 @@
+#===============================================================
+# City Sim – Tax Policy Configuration
+#---------------------------------------------------------------
+# This file defines how taxation philosophy affects economy,
+# happiness, and morale on each world tick.
+#
+# Each policy modifies three core aspects:
+#   • tax_rate:        Gold gain multiplier applied per tick.
+#   • happiness_delta: Baseline change to happiness each tick.
+#   • morale_volatility: How quickly morale reacts to happiness.
+#
+# Notes:
+#   - happiness starts around 1.0 and should stay roughly 0.5–1.5
+#   - morale tends to follow happiness, but faster if volatility > 1
+#===============================================================
+
+policies:
+  utopian:
+    tax_rate: 0.7
+    happiness_delta: 0.03
+    morale_volatility: 0.7
+    description: "Generous welfare and festivals. Happy citizens, an empty treasury."
+
+  laissez_faire:
+    tax_rate: 0.8
+    happiness_delta: 0.02
+    morale_volatility: 0.8
+    description: "Low taxes, minimal control. Citizens thrive, treasury grows slowly."
+
+  balanced:
+    tax_rate: 1.0
+    happiness_delta: 0.0
+    morale_volatility: 1.0
+    description: "Moderate policy ensuring steady growth and social stability."
+
+  expansionist:
+    tax_rate: 1.1
+    happiness_delta: -0.01
+    morale_volatility: 1.1
+    description: "Focus on funding armies and building projects at slight social cost."
+
+  authoritarian:
+    tax_rate: 1.2
+    happiness_delta: -0.02
+    morale_volatility: 1.3
+    description: "High taxes and strict control. Treasury gains fast, people grumble."
+
+
+

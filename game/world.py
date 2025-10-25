@@ -18,6 +18,47 @@ from game.economy.economy import gain_resources_from_buildings
 from game.npc.npc_cycle_manager import NPCCycleManager
 
 
+# ─────────────────────────────────────────────
+# Policy and Morale Tick Handler
+# ─────────────────────────────────────────────
+def process_tax_and_morale(players, events):
+    """Handles population, taxation, happiness, and morale per tick."""
+    db = Database.instance()
+    policy_cfg = load_config("tax_policy_config.yaml")["policies"]
+    mods = events.get_active_modifiers()
+
+    for p in players:
+        # Population growth and base income
+        update_population(p["name"])
+
+        # Use bracket syntax for sqlite3.Row
+        policy_name = p["tax_policy"] if "tax_policy" in p.keys() else "balanced"
+        policy = policy_cfg.get(policy_name, policy_cfg["balanced"])
+
+        tax_mult = float(policy["tax_rate"])
+        happiness_delta = float(policy["happiness_delta"])
+        volatility = float(policy["morale_volatility"])
+
+        # Event modifiers
+        happiness_mult = mods.get("happiness_mult", 1.0)
+        morale_mult = mods.get("morale_volatility_mult", 1.0)
+        gold_mult = mods.get("gold_income_mult", 1.0)
+
+        # Compute mood shifts
+        new_happiness = p["happiness"] + happiness_delta * happiness_mult
+        new_morale = p["morale"] + (new_happiness - p["morale"]) * 0.1 * volatility * morale_mult
+
+        # Store results
+        db.execute(
+            "UPDATE players SET happiness=?, morale=? WHERE name=?",
+            (new_happiness, new_morale, p["name"])
+        )
+
+        # Population-derived gold income
+        total_gold_mult = tax_mult * gold_mult
+        gain_resources_from_population(p["name"], gold_mult=total_gold_mult)
+
+
 def process_attacks():
     """Resolve all attacks whose arrival time has passed."""
     db = Database.instance()
@@ -48,7 +89,14 @@ async def main_loop():
     prestige_tick = 0
     trait_feedback_tick = 0
     npc_tick = 5  # set to 5 instead on one so npc's react first tick for debugging
+    # ─────────────────────────────────────────────
+    # Global world events instance
+    # ─────────────────────────────────────────────
     events = WorldEvents()
+
+    def get_world_modifiers():
+        """Allow other systems to access current event modifiers."""
+        return events.get_active_modifiers()
 
     while True:
         cfg = load_config("config.yaml")
@@ -61,10 +109,20 @@ async def main_loop():
             recalculate_all_player_stats()
 
             players = list_players()
+            players = list_players()
+
+            # ─────────────────────────────────────────────
+            # Taxation, Happiness, and Morale System
+            # (Model C)
+            # ─────────────────────────────────────────────
+            process_tax_and_morale(players, events)
+
+            # Buildings produce resources after morale/tax updates
+            mods = events.get_active_modifiers()
+            production_mult = mods.get("production_mult", 1.0)
+
             for p in players:
-                update_population(p["name"])
-                gain_resources_from_population(p["name"])
-                gain_resources_from_buildings(p['name'])
+                gain_resources_from_buildings(p["name"], resource_mult=production_mult)
 
             process_all_upkeep()
             process_espionage_jobs()
@@ -80,6 +138,10 @@ async def main_loop():
             process_achievements()
             process_attacks()
             process_random_events()
+
+            # Display currently active world events every few ticks
+            if prestige_tick % 5 == 0:
+                events.print_active_events()
 
             npc_tick += 1
             if npc_tick >= 0:

@@ -62,7 +62,7 @@ def trigger_special_event(player_id: int, name: str, res_names: list[str]):
         for res in res_names:
             add_resources(player_id, {res: percent * random.randint(80, 120)})
         msg = (
-            "🎉 A grand Festival of Prosperity sweeps your city! "
+            "A grand Festival of Prosperity sweeps your city! "
             "All resources flourish as your people celebrate!"
         )
         send_message(name, msg)
@@ -75,7 +75,7 @@ def trigger_special_event(player_id: int, name: str, res_names: list[str]):
         for res in res_names:
             consume_resources(player_id, {res: percent * random.randint(50, 150)})
         msg = (
-            "🔥 A fire rages through your warehouses, destroying supplies across the city!"
+            "A fire rages through your warehouses, destroying supplies across the city!"
         )
         send_message(name, msg)
         game_log("EVENT", f"{name} suffered a Storehouse Fire (-{int(percent*100)}%).")
@@ -87,7 +87,7 @@ def trigger_special_event(player_id: int, name: str, res_names: list[str]):
         wood_gain = random.randint(50, 150)
         add_resources(player_id, {"gold": gold_gain, "wood": wood_gain})
         msg = (
-            f"🛒 A merchant caravan passes through your city, "
+            f"A merchant caravan passes through your city, "
             f"gifting {gold_gain} Gold and {wood_gain} Wood in trade profits!"
         )
         send_message(name, msg)

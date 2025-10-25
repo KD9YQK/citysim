@@ -10,6 +10,7 @@ resources, and NPC behavior for limited durations.
 import random
 from game.utility.logger import game_log
 from game.utility.utils import load_config
+from game.utility.db import Database
 
 
 class WorldEvents:
@@ -19,6 +20,52 @@ class WorldEvents:
         cfg = load_config("world_events_config.yaml")
         self.events = cfg.get("events", {})
         self.active = {}  # {event_name: ticks_remaining}
+        self.db = Database.instance()
+        self._prune_stale_db_entries()   # remove bad data first
+        self._load_active_from_db()
+
+    # ─────────────────────────────────────────────
+    # Persistence Helpers
+    # ─────────────────────────────────────────────
+    def _load_active_from_db(self):
+        """Load any unexpired events from the database on startup."""
+        rows = self.db.execute(
+            "SELECT event_name, ticks_remaining FROM world_events_active",
+            fetchall=True,
+        )
+        for r in rows or []:
+            if r["event_name"] in self.events:
+                self.active[r["event_name"]] = r["ticks_remaining"]
+
+    def _save_active_to_db(self):
+        """Persist all current active events to the database."""
+        self.db.execute("DELETE FROM world_events_active")
+        for name, ticks in self.active.items():
+            self.db.execute(
+                "INSERT INTO world_events_active (event_name, ticks_remaining) VALUES (?, ?)",
+                (name, ticks),
+            )
+
+    def _prune_stale_db_entries(self):
+        """
+        Remove any expired or invalid events from the database.
+        Called on startup before loading active events.
+        """
+        rows = self.db.execute(
+            "SELECT event_name, ticks_remaining FROM world_events_active",
+            fetchall=True,
+        )
+        stale = []
+        for r in rows or []:
+            name, ticks = r["event_name"], r["ticks_remaining"]
+            if name not in self.events or ticks <= 0:
+                stale.append(name)
+
+        for name in stale:
+            self.db.execute("DELETE FROM world_events_active WHERE event_name=?", (name,))
+
+        if stale:
+            game_log("EVENT", f"Pruned stale events: {', '.join(stale)}")
 
     # ─────────────────────────────────────────────
     # Update once per world tick
@@ -49,6 +96,8 @@ class WorldEvents:
                 game_log("EVENT", msg)
                 break  # only one new event per tick
 
+        self._save_active_to_db()
+
     # ─────────────────────────────────────────────
     # Duration & Expiration
     # ─────────────────────────────────────────────
@@ -67,20 +116,33 @@ class WorldEvents:
             )
             game_log("EVENT", end_msg)
 
+        # Persist current state after cleanup
+        self._save_active_to_db()
+
     # ─────────────────────────────────────────────
-    # Modifiers for Integration
+    # Modifiers for Integration (Updated)
     # ─────────────────────────────────────────────
     def get_active_modifiers(self) -> dict:
         """
-        Returns combined active event effects.
-        Example output:
-            {'food_price_mult': 0.75, 'global_price_mult': 1.15}
+        Combines all active event multipliers.
+
+        Reads both 'effects' (economic) and optional 'mood_effects' (social)
+        from config. Example:
+            {'gold_income_mult': 1.1, 'happiness_mult': 0.9}
         """
-        modifiers = {}
+
+        def merge(dst, src):
+            if not src:
+                return
+            for k, v in src.items():
+                dst[k] = dst.get(k, 1.0) * v
+
+        mods = {}
         for name in self.active:
-            for k, v in self.events[name].get("effects", {}).items():
-                modifiers[k] = modifiers.get(k, 1.0) * v
-        return modifiers
+            evt = self.events.get(name, {})
+            merge(mods, evt.get("effects", {}))
+            merge(mods, evt.get("mood_effects", {}))
+        return mods
 
     # ─────────────────────────────────────────────
     # Debug Utility
