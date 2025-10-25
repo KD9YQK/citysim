@@ -50,7 +50,8 @@ class Database:
                 last_prestige_update REAL DEFAULT 0,
                 spies INTEGER DEFAULT 0,
                 trait_greed REAL DEFAULT 1.0,
-                trait_risk REAL DEFAULT 1.0
+                trait_risk REAL DEFAULT 1.0,
+                city_phase TEXT DEFAULT 'early'
             );
 
             CREATE TABLE IF NOT EXISTS wars (
@@ -180,6 +181,17 @@ class Database:
                 total_profit REAL DEFAULT 0,
                 trades INTEGER DEFAULT 0,
                 prestige REAL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS npc_cycles (
+                npc_id INTEGER PRIMARY KEY,
+                awake INTEGER DEFAULT 1,                -- 1 = active, 0 = sleeping
+                ticks_awake INTEGER DEFAULT 0,          -- how many ticks awake so far
+                ticks_asleep INTEGER DEFAULT 0,         -- how many ticks asleep so far
+                next_wake_tick INTEGER DEFAULT 0,       -- optional deterministic wake-up
+                active_duration INTEGER DEFAULT 5,      -- how long current active phase lasts (ticks)
+                sleep_duration INTEGER DEFAULT 5,       -- how long current sleep phase lasts (ticks)
+                last_state_change REAL DEFAULT (strftime('%s','now')),
+                FOREIGN KEY(npc_id) REFERENCES players(id)
             );
             """)
             cur.close()

@@ -60,6 +60,37 @@ npc_ai:
   decay_inactive_skip_minutes: 30
 
 
+  # ─────────────────────────────────────────────
+  # Adaptive Phase Control Configuration
+  # ─────────────────────────────────────────────
+
+  # Thresholds for transitioning between city phases.
+  # The NPC's current phase is stored persistently in the 'players.city_phase' column.
+  phase_thresholds:
+    early:
+      buildings: 8       # Remains in early phase until reaching this number of buildings
+      population: 120    # or until population exceeds this number
+    mid:
+      buildings: 20      # Mid-phase threshold
+      population: 400
+    # Any NPC exceeding the 'mid' thresholds enters the late phase automatically.
+
+  # Whether to write current phase changes to the AI log each tick.
+  phase_logging: true
+
+  # Economic sanity limits for early game actions.
+  # Prevents NPCs from training or attacking when they're too poor.
+  resource_minimums:
+    gold: 300
+    food: 500
+
+  # Optional global event multipliers for world event weighting.
+  # These multipliers are applied to building role weights during choose_best_building().
+  # WorldEvents().get_active_modifiers() can override them dynamically.
+  role_event_multipliers:
+    economy_mult: 1.0
+    military_mult: 1.0
+
   # ───────────────────────────────────────────────────────────────────────────
   # Espionage Behavior
   # ---------------------------------------------------------------------------
@@ -239,3 +270,41 @@ trait_feedback:
 
   # ───── Logging & Debugging ─────
   log_trait_changes: true          # Log updates for each NPC trade
+
+
+  # ─────────────────────────────────────────────
+  # NPC Sleep Cycle Configuration
+  # ─────────────────────────────────────────────
+  # Each personality defines its active and rest durations in world ticks.
+  # These simulate human-like login patterns, preventing NPCs from acting constantly.
+  # Durations are chosen randomly within the provided ranges each cycle.
+
+  sleep_cycles:
+    Aggressor:
+      active_min: 6    # Active for 6–8 ticks before resting
+      active_max: 8
+      rest_min: 2      # Sleeps 2–3 ticks before waking again
+      rest_max: 3
+
+    Defender:
+      active_min: 8
+      active_max: 10
+      rest_min: 4
+      rest_max: 5
+
+    Economist:
+      active_min: 4
+      active_max: 6
+      rest_min: 8
+      rest_max: 10
+
+    Opportunist:
+      active_min: 5
+      active_max: 7
+      rest_min: 5
+      rest_max: 8
+
+  # Sleep cycles are independent of phase control and global events.
+  # NPCs act only when 'awake'; when sleeping, they perform minimal economy balancing.
+  # This prevents runaway NPC advantage during periods of player inactivity.
+

@@ -15,6 +15,7 @@ from game.economy.market_base import update_trade_prestige
 from game.npc.npc_trait_feedback import print_npc_traits
 from game.events.world_events import WorldEvents
 from game.economy.economy import gain_resources_from_buildings
+from game.npc.npc_cycle_manager import NPCCycleManager
 
 
 def process_attacks():
@@ -41,10 +42,12 @@ async def main_loop():
 
     npc = NPCAI()
     npc.initialize()
+    cycle_mgr = NPCCycleManager()
+
     game_log("WORLD", f"Tick interval: {tick_minutes} minute(s)")
     prestige_tick = 0
     trait_feedback_tick = 0
-
+    npc_tick = 5  # set to 5 instead on one so npc's react first tick for debugging
     events = WorldEvents()
 
     while True:
@@ -77,7 +80,22 @@ async def main_loop():
             process_achievements()
             process_attacks()
             process_random_events()
-            npc.run()
+
+            npc_tick += 1
+            if npc_tick >= 5:
+                npc_tick = 0
+
+                # ─────────────────────────────────────────────
+                # NPC Sleep Cycle Manager
+                # Only NPCs marked as awake will act this tick.
+                # ─────────────────────────────────────────────
+                current_tick = Database.instance().execute("SELECT strftime('%s','now')", fetchone=True)[0]
+                acting_ids = cycle_mgr.update_all_cycles(current_tick)
+                if acting_ids:
+                    npcs = [n for n in npc.db.execute("SELECT * FROM players WHERE is_npc=1", fetchall=True)
+                            if n["id"] in acting_ids]
+                    for npc_row in npcs:
+                        npc.run_single(dict(npc_row))
 
             trait_feedback_tick += 1
             if trait_feedback_tick >= 15:

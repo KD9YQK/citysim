@@ -19,8 +19,34 @@ from .npc_economy import NPCEconomy
 from .npc_market_behavior import NPCMarketBehavior
 from game.economy.market_base import cleanup_trade_history, update_trade_prestige
 from .npc_trait_feedback import decay_all_traits
+from game.events.world_events import WorldEvents
 
 market_behavior = NPCMarketBehavior(debug=False)
+
+
+def get_city_phase(npc):
+    """Return 'early', 'mid', or 'late' based on config thresholds."""
+    cfg = load_config("npc_config.yaml")["npc_ai"]["phase_thresholds"]
+    db = Database.instance()
+    player = db.execute("SELECT population, city_phase FROM players WHERE id=?", (npc["id"],), fetchone=True)
+    if not player:
+        return "early"
+
+    pop = player["population"]
+    buildings = db.execute(
+        "SELECT COUNT(*) AS c FROM buildings WHERE player_name=?",
+        (npc["name"],), fetchone=True
+    )["c"]
+
+    if buildings < cfg["early"]["buildings"] or pop < cfg["early"]["population"]:
+        phase = "early"
+    elif buildings < cfg["mid"]["buildings"] or pop < cfg["mid"]["population"]:
+        phase = "mid"
+    else:
+        phase = "late"
+
+    db.execute("UPDATE players SET city_phase=? WHERE id=?", (phase, npc["id"]))
+    return phase
 
 
 def get_recent_intel(npc_name, max_age_ticks=200):
@@ -136,13 +162,49 @@ def choose_best_building(npc):
             if bcfg[b].get("role") in ["economy", "military"]:
                 weights[b] += 0.5
 
+    # === Phase and World Event Modifiers ===
+    phase = npc.get("phase") or get_city_phase(npc)
+    phase_cfg = load_config("npc_config.yaml")["npc_ai"]
+    role_mults = phase_cfg.get("role_event_multipliers", {})
+    modifiers = WorldEvents().get_active_modifiers()
+
+    # Combine static config and live event multipliers
+    economy_mult = modifiers.get("economy_mult", role_mults.get("economy_mult", 1.0))
+    military_mult = modifiers.get("military_mult", role_mults.get("military_mult", 1.0))
+
+    for bname, conf in bcfg.items():
+        role = conf.get("role", "").lower()
+        w = weights[bname]
+
+        # Apply phase weighting
+        if phase == "early":
+            if role in ("economy", "growth"):
+                w *= 3.0
+            elif role in ("military", "defense", "espionage"):
+                w *= 0.25
+        elif phase == "mid":
+            if role == "military":
+                w *= 1.2
+        elif phase == "late":
+            if role == "military":
+                w *= 1.5
+
+        # Apply event multipliers
+        if role in ("economy", "growth"):
+            w *= economy_mult
+        elif role in ("military", "defense", "espionage"):
+            w *= military_mult
+
+        weights[bname] = w
+
     # === Resource efficiency scaling ===
     for bname, w in list(weights.items()):
         cost_dict = bcfg.get(bname, {}).get("cost", {})
         total_cost = sum(cost_dict.values()) if isinstance(cost_dict, dict) else float(cost_dict or 1)
 
         # Optional: consider per-tick production for resource buildings
-        production_value = sum(v for k, v in bcfg.get(bname, {}).items() if k.endswith("_per_tick") and isinstance(v, (int, float)))
+        production_value = sum(
+            v for k, v in bcfg.get(bname, {}).items() if k.endswith("_per_tick") and isinstance(v, (int, float)))
         w *= (1 + (production_value / 10))  # adds subtle preference for productive structures
 
         weights[bname] = w * (resources / max(total_cost, 1))
@@ -349,6 +411,20 @@ class NPCAI:
 
     def maybe_train_troops(self, npc):
         """NPC trains troops if under max limit and has resources (smarter version)."""
+        phase = npc.get("phase") or get_city_phase(npc)
+        # === Early-phase gating (already present above) ===
+        if phase == "early":
+            ai_log("AI_PHASE", f"{npc['name']} skipping military/espionage (early phase).", npc)
+            return False
+
+        # === Resource sanity check ===
+        res = get_resources(npc["id"])
+        rmin = load_config("npc_config.yaml")["npc_ai"]["resource_minimums"]
+        if res.get("gold", 0) < rmin["gold"] or res.get("food", 0) < rmin["food"]:
+            ai_log("AI_PHASE",
+                   f"{npc['name']} too poor to train (gold={res.get('gold', 0)}, food={res.get('food', 0)}).", npc)
+            return False
+
         amount = choose_training_amount(npc)
         if amount <= 0:
             return False
@@ -386,6 +462,11 @@ class NPCAI:
         ai_log("WAR", f"{npc['name']} made peace with {enemy}", npc, war=True)
 
     def attack_or_war_decision(self, npc):
+        phase = npc.get("phase") or get_city_phase(npc)
+        if phase == "early":
+            ai_log("AI_PHASE", f"{npc['name']} skipping military/espionage (early phase).", npc)
+            return False
+
         all_players = list_players()
         wars = wars_for(npc["name"])
 
@@ -446,6 +527,15 @@ class NPCAI:
                 ai_log("ECONOMY", f"{npc['name']} skips this tick due to low funds.", npc)
                 continue
 
+            phase = get_city_phase(npc)
+            # Use a lightweight dict copy so phase can be referenced downstream safely
+            npc_dict = dict(npc)
+            npc_dict["phase"] = phase
+
+            npc_cfg_ai = load_config("npc_config.yaml")["npc_ai"]
+            if npc_cfg_ai.get("phase_logging", True):
+                ai_log("AI_PHASE", f"{npc['name']} current phase: {phase}", npc_dict)
+
             market_ai = NPCMarketBehavior()
             market_ai.act_on_market(npc)
 
@@ -455,15 +545,15 @@ class NPCAI:
                 self.evolve_traits(npc["name"], "low_resources")
                 acted = True
 
-            if self.maybe_train_troops(npc):
+            if self.maybe_train_troops(npc_dict):
                 acted = True
-            if self.maybe_train_spies(npc):
+            if self.maybe_train_spies(npc_dict):
                 acted = True
-            if self.maybe_conduct_espionage(npc):
+            if self.maybe_conduct_espionage(npc_dict):
                 acted = True
-            if self.consider_diplomacy(npc):
+            if self.consider_diplomacy(npc_dict):
                 acted = True
-            if self.act(npc):
+            if not acted and self.act(npc_dict):
                 acted = True
             if acted:
                 self.mark_active(npc['name'])
@@ -483,6 +573,48 @@ class NPCAI:
 
         decay_all_traits()
         ai_log("SYSTEM", f"NPC Actions complete at {time.strftime('%H:%M:%S')}")
+
+    # ---------------------------------------------------
+    # === PER-NPC RUNNER (Sleep Cycle Compatible) ===
+    # ---------------------------------------------------
+
+    def run_single(self, npc):
+        """
+        Executes a single NPC's AI logic safely.
+        Used by world.py when integrating sleep cycles.
+        """
+        try:
+            eco = NPCEconomy()
+            eco.balance(npc)
+
+            # Skip further actions if too poor
+            if not eco.can_afford_action(npc, min_gold=50):
+                ai_log("ECONOMY", f"{npc['name']} skips tick (low funds).", npc)
+                return
+
+            # Update city phase for gating & weighting
+            phase = get_city_phase(npc)
+            npc_dict = dict(npc)
+            npc_dict["phase"] = phase
+
+            # Personality evolution hooks
+            if self.maybe_train_troops(npc_dict):
+                pass
+            if self.maybe_train_spies(npc_dict):
+                pass
+            if self.maybe_conduct_espionage(npc_dict):
+                pass
+            if self.consider_diplomacy(npc_dict):
+                pass
+            if self.act(npc_dict):
+                pass
+
+            # Decay traits occasionally
+            if random.random() < 0.15:
+                self.decay_traits(npc["name"])
+
+        except Exception as e:
+            ai_log("ERROR", f"run_single() failed for {npc['name']}: {e}", npc)
 
     # ---------------------------------------------------
     # === ADAPTIVE TRAITS ===
@@ -750,9 +882,23 @@ class NPCAI:
         """NPC trains spies up to their Academy-based maximum."""
         db = Database.instance()
         name = npc["name"]
+        # === Early-phase gating (already present above) ===
+        phase = npc.get("phase") or get_city_phase(npc)
+        if phase == "early":
+            ai_log("AI_PHASE", f"{npc['name']} skipping military/espionage (early phase).", npc)
+            return False
+
+        # === Resource sanity check ===
+        res = get_resources(npc["id"])
+        rmin = load_config("npc_config.yaml")["npc_ai"]["resource_minimums"]
+        if res.get("gold", 0) < rmin["gold"] or res.get("food", 0) < rmin["food"]:
+            ai_log("AI_PHASE",
+                   f"{npc['name']} too poor to train (gold={res.get('gold', 0)}, food={res.get('food', 0)}).", npc)
+            return False
+
         # Check academy capacity
         academy = db.execute(
-            "SELECT SUM(level) AS total FROM buildings WHERE player_name=? AND building_name='Academys'",
+            "SELECT SUM(level) AS total FROM buildings WHERE player_name=? AND building_name='Academies'",
             (name,),
             fetchone=True,
         )
@@ -784,6 +930,10 @@ class NPCAI:
         """NPC decides when and whom to perform espionage against (intel-aware, filtered logging)."""
         db = Database.instance()
         name = npc["name"]
+        phase = npc.get("phase") or get_city_phase(npc)
+        if phase == "early":
+            ai_log("AI_PHASE", f"{npc['name']} skipping military/espionage (early phase).", npc)
+            return False
 
         logging_enabled = self.cfg.get("espionage_logging", False)
         log_mode = self.cfg.get("espionage_log_mode", "all")
