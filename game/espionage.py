@@ -3,7 +3,6 @@ espionage.py — Tick-based espionage system for CitySim
 Refactored for espionage_config.yaml (Build 2025.10.24)
 """
 
-import time
 import random
 from game.utility.db import Database
 from game.utility.logger import game_log
@@ -376,3 +375,98 @@ def get_intel_advantage(attacker: str, defender: str) -> (float, float):
 
     # Round to sensible precision
     return round(attack_bonus, 3), round(defense_bonus, 3)
+
+
+# ----------------------------------------------------------
+# === SPY INFORMATION HELPERS ===
+# ----------------------------------------------------------
+
+from game.utility.db import Database
+import time
+
+db = Database.instance()
+
+def get_spy_intel(owner: str, limit: int = 10):
+    """
+    Return recent intel reports for the player in the format expected by
+    the detailed status formatter: a list of dicts with keys:
+      - target: str
+      - report: str
+      - age: int (ticks since the report was created)
+    Only uses live schema: intel_reports(owner, target, report, timestamp).
+    """
+    db = Database.instance()
+    rows = db.execute(
+        """
+        SELECT target, report, timestamp
+        FROM intel_reports
+        WHERE owner=?
+        ORDER BY timestamp DESC
+        LIMIT ?
+        """,
+        (owner, limit),
+        fetchall=True,
+    )
+
+    intel = []
+    for r in rows or []:
+        intel.append({
+            "target": r["target"],
+            "report": r["report"],
+            "age": int(ticks_passed(r["timestamp"]))
+        })
+    return intel
+
+
+def get_spy_history(owner: str, limit: int = 10):
+    """
+    Return recent espionage missions for the player with an inferred outcome.
+
+    Uses only live schema:
+      - espionage(attacker, target, action, start_time, processed)
+      - intel_reports(owner, target, timestamp, report)
+
+    A mission is considered 'success' if there's an intel_report for (owner,target)
+    with timestamp >= the mission's start_time. Otherwise it's treated as failed.
+
+    Returns list of dicts with keys:
+      - action: str
+      - target: str
+      - success: 1|0
+      - age: int (ticks since mission start)
+    """
+    db = Database.instance()
+    missions = db.execute(
+        """
+        SELECT id, target, action, start_time
+        FROM espionage
+        WHERE attacker=? AND processed=1
+        ORDER BY start_time DESC
+        LIMIT ?
+        """,
+        (owner, limit),
+        fetchall=True,
+    )
+
+    history = []
+    for m in missions or []:
+        # infer success by existence of a matching intel report at/after mission start
+        rep = db.execute(
+            """
+            SELECT 1
+            FROM intel_reports
+            WHERE owner=? AND target=? AND timestamp >= ?
+            ORDER BY timestamp ASC
+            LIMIT 1
+            """,
+            (owner, m["target"], m["start_time"]),
+            fetchone=True,
+        )
+        success = 1 if rep else 0
+        history.append({
+            "action": m["action"],
+            "target": m["target"],
+            "success": success,
+            "age": int(ticks_passed(m["start_time"]))
+        })
+    return history

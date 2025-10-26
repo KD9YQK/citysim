@@ -159,7 +159,8 @@ def get_training_queues(player_name):
 
     tick_interval = cfg["tick_interval"]
     training_time = cfg["training_time"]
-    spy_train_time = cfg["espionage"]["train_time"]
+    scfg = load_config("espionage_config.yaml")
+    spy_train_time = scfg["espionage"]["train"]["time"]
 
     # Compute ETA for each pending item
     troops = []
@@ -290,17 +291,15 @@ def get_spy_operations(player_name):
     """
     Return active spy missions (unprocessed espionage jobs) as structured dicts.
     Each mission includes: action, target, and remaining time in ticks.
-
-    Output example:
-      [
-        {'action': 'sabotage', 'target': 'Steel_Heart', 'age': 2},
-        {'action': 'steal',    'target': 'Ironspire',   'age': 1}
-      ]
+    Reads durations dynamically from espionage_config.yaml > espionage > missions.
     """
     db = Database.instance()
     cfg = load_config()
-    tick_interval = cfg["tick_interval"]
-    base_time = cfg["espionage"]["duration"]
+    tick_interval = cfg.get("tick_interval", 1)
+
+    # Load espionage mission definitions
+    scfg = load_config("espionage_config.yaml")
+    missions_cfg = scfg.get("espionage", {}).get("missions", {})
 
     rows = db.execute(
         """
@@ -317,15 +316,18 @@ def get_spy_operations(player_name):
     for r in rows or []:
         action = r["action"]
         target = r["target"]
-        # Duration values may differ per action; default to average if missing
-        duration = base_time.get(action, list(base_time.values())[0])
+
+        # Safely pull duration per action (default to 3 ticks if missing)
+        duration = missions_cfg.get(action, {}).get("duration", 3)
         passed = ticks_passed(r["start_time"])
         remaining = max(0, int((duration - passed) * tick_interval))
+
         missions.append({
             "action": action,
             "target": target,
-            "age": remaining  # rename for display consistency
+            "age": remaining  # 'age' = ticks left for display consistency
         })
+
     return missions
 
 
@@ -508,6 +510,7 @@ def get_combat_bonuses(player_name: str) -> dict:
     return bonuses
 
 
+# noinspection PyTypeChecker
 def get_status_data(player_name):
     """
     Orchestrate data collection for the player's city status screen.
@@ -554,6 +557,55 @@ def get_status_data(player_name):
     # Inject into the payload
     data["global_events"] = active_events
     data["achievements"] = achievements
+
+    # ─── New Additions ─────────────────────────────────────────
+    data["social"] = get_social_stats(player_name)
+    data["taxation"] = get_taxation_status(player_name)
+    data["relations"] = get_diplomatic_relations(player_name)
+
+    # Augment global events with per-event modifiers (from config)
+    try:
+        we = WorldEvents()
+        data["global_events"] = []
+
+        # Helper: friendly label map for known keys
+        _LABELS = {
+            "gold_income_mult": "Gold Income",
+            "food_income_mult": "Food Output",
+            "stone_income_mult": "Stone Output",
+            "wood_income_mult": "Wood Output",
+            "copper_income_mult": "Copper Output",
+            "happiness_mult": "Happiness",
+            "morale_mult": "Morale",
+            "production_mult": "Production",
+        }
+
+        for name, ticks in we.active.items():
+            evt = we.events.get(name, {})  # per-event config
+            # Merge both economic and mood effects into one dict
+            mods = {}
+            for src in ("effects", "mood_effects"):
+                for k, v in (evt.get(src, {}) or {}).items():
+                    mods[k] = v  # per-event multipliers (e.g., 1.10, 0.95)
+
+            # Build a single readable modifier string if any exist
+            if mods:
+                parts = []
+                for k, mult in mods.items():
+                    label = _LABELS.get(k, k)
+                    # Convert 1.10 -> +10%, 0.95 -> -5%
+                    pct = int(round((mult - 1.0) * 100))
+                    sign = "+" if pct >= 0 else ""
+                    parts.append(f"{sign}{pct}% {label}")
+                data["global_events"].append({
+                    "name": name,
+                    "ticks": ticks,
+                    "modifier": ", ".join(parts)
+                })
+            else:
+                data["global_events"].append({"name": name, "ticks": ticks})
+    except Exception:
+        pass
 
     return data
 
@@ -649,12 +701,11 @@ def get_recent_achievements(player_name, limit=5):
 # ───────────────────────────────────────────────────────────────
 # DETAILED STRATEGIC AGGREGATOR
 # ───────────────────────────────────────────────────────────────
+# noinspection PyTypeChecker
 def get_detailed_status_data(player_name: str):
     """
-    Collect and organize all expanded data required for the Phase 2
-    Strategic Status Readout (detailed display).
-
-    Mirrors the final three-column design:
+    Collect and organize all expanded data required for the Detailed Strategic Status Readout.
+    Mirrors the final three-column design with totals and sub-details:
       • city_overview (left)
       • economy (center)
       • war_room (right)
@@ -665,11 +716,13 @@ def get_detailed_status_data(player_name: str):
         return None
 
     pid = player["id"]
+    db = Database.instance()
 
-    # ─── Left Column: City Overview ─────────────────────────────
+    # ─── LEFT COLUMN: City Overview ─────────────────────────────
     left_col = {
         "rank": player.get("rank"),
         "prestige": player.get("prestige"),
+        "social": get_social_stats(player_name),
         "population": {
             "current": player.get("population", 0),
             "max": player.get("max_population", 0),
@@ -684,51 +737,97 @@ def get_detailed_status_data(player_name: str):
             "current": player.get("spies", 0),
             "max": player.get("max_spies", 0),
         },
-        "resources": get_resources(player['id']),
+        "resources": get_resources(player["id"]),
         "buildings": get_buildings(player_name),
+        "global_events": [],
+        "achievements": get_recent_achievements(player_name),
     }
 
-    # ─── Global Events Summary ───────────────────────────────────
-    global_events = get_global_events_summary()
-    if global_events:
-        left_col["global_events"] = global_events
+    try:
+        we = WorldEvents()
+        # Helper: friendly label map for known keys
+        _LABELS = {
+            "gold_income_mult": "Gold Income",
+            "food_income_mult": "Food Output",
+            "stone_income_mult": "Stone Output",
+            "wood_income_mult": "Wood Output",
+            "copper_income_mult": "Copper Output",
+            "happiness_mult": "Happiness",
+            "morale_mult": "Morale",
+            "production_mult": "Production",
+        }
 
-    # ─── Achievements Summary ───────────────────────────────────
-    achievements = get_recent_achievements(player_name)
-    if achievements:
-        left_col["achievements"] = achievements
+        for name, ticks in we.active.items():
+            evt = we.events.get(name, {})
+            mods = {}
+            for src in ("effects", "mood_effects"):
+                for k, v in (evt.get(src, {}) or {}).items():
+                    mods[k] = v
 
-    # ─── Center Column: Economy & Population ────────────────────
+            if mods:
+                parts = []
+                for k, mult in mods.items():
+                    label = _LABELS.get(k, k)
+                    pct = int(round((mult - 1.0) * 100))
+                    sign = "+" if pct >= 0 else ""
+                    parts.append(f"{sign}{pct}% {label}")
+                left_col["global_events"].append({
+                    "name": name,
+                    "ticks": ticks,
+                    "modifier": ", ".join(parts)
+                })
+            else:
+                left_col["global_events"].append({"name": name, "ticks": ticks})
+    except Exception:
+        pass
+
+    # ─── CENTER COLUMN: Economy & Population ────────────────────
     pop_gain = get_population_growth_breakdown(player_name)
     upkeep = calculate_upkeep_breakdown(player_name, pid)
     income = get_income_breakdown(player_name)
+    taxation = get_taxation_status(player_name)
+    social = left_col["social"]
+
+    # Compute derived modifiers for population growth
+    happiness_mod = (social.get("happiness", 0) - 50) / 100
+    morale_mod = (social.get("morale", 0) - 50) / 100
+    base_growth = pop_gain.get("base", 0)
+    total_growth = base_growth + sum(pop_gain.get("buildings", {}).values())
+    adjusted_growth = total_growth * (1 + happiness_mod + morale_mod)
 
     center_col = {
-        "population_gain": pop_gain,
+        "population_gain": {
+            "base": base_growth,
+            "buildings": pop_gain.get("buildings", {}),
+            "modifiers": {
+                "happiness": round(happiness_mod * 100, 1),
+                "morale": round(morale_mod * 100, 1),
+            },
+            "total": round(adjusted_growth, 2)
+        },
         "upkeep": upkeep,
         "income": income,
+        "taxation": taxation,
     }
 
-    # ─── Right Column: War Room ─────────────────────────────────
+    # ─── RIGHT COLUMN: War Room ─────────────────────────────────
     combat = get_combat_bonuses(player_name)
     wars_data = get_wars_and_attacks(player_name)
+    relations = get_diplomatic_relations(player_name)
 
-    # Merge wars + incoming/outgoing by enemy name for formatter
+    # Merge wars + incoming/outgoing by enemy name
     merged_wars = []
     if wars_data:
         enemies = {w["enemy"]: {"enemy": w["enemy"], "incoming": [], "outgoing": []}
                    for w in wars_data.get("wars", [])}
-
         for atk in wars_data.get("incoming", []):
             enemy = atk.get("attacker_name", "Unknown")
             enemies.setdefault(enemy, {"enemy": enemy, "incoming": [], "outgoing": []})
             enemies[enemy]["incoming"].append(atk)
-
         for atk in wars_data.get("outgoing", []):
             enemy = atk.get("defender_name", "Unknown")
             enemies.setdefault(enemy, {"enemy": enemy, "incoming": [], "outgoing": []})
             enemies[enemy]["outgoing"].append(atk)
-
         merged_wars = list(enemies.values())
 
     spy_active = get_spy_operations(player_name)
@@ -738,6 +837,7 @@ def get_detailed_status_data(player_name: str):
 
     right_col = {
         "combat_bonuses": combat,
+        "relations": relations,
         "wars": merged_wars,
         "spy_network": {
             "active": spy_active,
@@ -747,39 +847,125 @@ def get_detailed_status_data(player_name: str):
         "recent_battles": battles,
     }
 
-    # ─── Spy Success Rates (from config.yaml) ───────────────────────────────
+    # Spy Success Chances
     cfg = load_config("config.yaml").get("espionage", {})
     success_chances = cfg.get("success_chance", {})
     base_scout = float(success_chances.get("scout", 0.5))
     base_steal = float(success_chances.get("steal", 0.5))
     base_sabotage = float(success_chances.get("sabotage", 0.5))
-
-    # Compute Academy bonus from total levels
-    db = Database.instance()
     acad_row = db.execute(
-        "SELECT SUM(level) AS total FROM buildings "
-        "WHERE player_name=? AND building_name='Academies'",
-        (player_name,),
-        fetchone=True,
+        "SELECT SUM(level) AS total FROM buildings WHERE player_name=? AND building_name='Academies'",
+        (player_name,), fetchone=True
     )
     acad_levels = acad_row["total"] or 0
-    acad_bonus = acad_levels * 0.05  # mirrors espionage.get_spy_modifiers()
+    acad_bonus = acad_levels * 0.05
 
-    spy_success = {
+    right_col["spy_success"] = {
         "academy_bonus": round(acad_bonus, 2),
         "scout": round(base_scout + acad_bonus, 2),
         "steal": round(base_steal + acad_bonus, 2),
         "sabotage": round(base_sabotage + acad_bonus, 2),
     }
 
-    right_col["spy_success"] = spy_success
-
-    # ─── Footer Messages ────────────────────────────────────────
-    messages = get_messages(player_name)
-
     return {
         "city_overview": left_col,
         "economy": center_col,
         "war_room": right_col,
-        "messages": messages,
+        "messages": get_messages(player_name),
+    }
+
+
+# ───────────────────────────────────────────────────────────────
+# SOCIAL, TAXATION, & DIPLOMACY EXTENSIONS
+# ───────────────────────────────────────────────────────────────
+
+def get_social_stats(player_name):
+    """Return happiness and morale values for the player."""
+    db = Database.instance()
+    row = db.execute(
+        "SELECT happiness, morale FROM players WHERE name=?",
+        (player_name,), fetchone=True
+    )
+    if not row:
+        return {"happiness": 0, "morale": 0}
+    return {"happiness": row["happiness"], "morale": row["morale"]}
+
+
+def get_taxation_status(player_name):
+    """
+    Return tax policy and computed rate from the YAML configuration.
+    Falls back to defaults if the player's policy isn't recognized.
+    """
+    db = Database.instance()
+
+    # Get player's current policy and population
+    row = db.execute(
+        "SELECT tax_policy, population FROM players WHERE name=?",
+        (player_name,),
+        fetchone=True,
+    )
+    if not row:
+        return {"policy": "Unknown", "rate": 0.0, "income": 0.0}
+
+    policy = row["tax_policy"]
+    population = row["population"]
+
+    # Load rates from YAML
+    cfg = load_config("tax_policy_config.yaml")
+    policy_cfg = cfg.get("policies", {}).get(policy.lower(), {})
+    rate = float(policy_cfg.get("rate", 0.05)) * 100  # convert to %
+    income = round(population * (rate / 100.0), 2)
+
+    return {
+        "policy": policy.capitalize(),
+        "rate": rate,
+        "income": income
+    }
+
+
+def get_diplomatic_relations(player_name):
+    """
+    Aggregate relation stats: allies, enemies, neutrals, and average trust.
+    Works with the actual 'relations' schema (player1_id, player2_id, trust).
+    """
+    db = Database.instance()
+
+    # Get this player's ID
+    pid_row = db.execute(
+        "SELECT id FROM players WHERE name=?",
+        (player_name,),
+        fetchone=True
+    )
+    if not pid_row:
+        return {"allies": 0, "enemies": 0, "neutral": 0, "avg_trust": 0}
+    pid = pid_row["id"]
+
+    # Pull all relations involving this player
+    rel_rows = db.execute(
+        """
+        SELECT trust
+        FROM relations
+        WHERE player1_id=? OR player2_id=?
+        """,
+        (pid, pid),
+        fetchall=True
+    )
+
+    if not rel_rows:
+        return {"allies": 0, "enemies": 0, "neutral": 0, "avg_trust": 0}
+
+    trusts = [r["trust"] for r in rel_rows if r["trust"] is not None]
+    if not trusts:
+        return {"allies": 0, "enemies": 0, "neutral": 0, "avg_trust": 0}
+
+    avg_trust = sum(trusts) / len(trusts)
+    allies = len([t for t in trusts if t > 50])
+    enemies = len([t for t in trusts if t < -50])
+    neutral = len(trusts) - allies - enemies
+
+    return {
+        "allies": allies,
+        "enemies": enemies,
+        "neutral": neutral,
+        "avg_trust": round(avg_trust, 1)
     }

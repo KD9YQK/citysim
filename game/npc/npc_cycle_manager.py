@@ -35,8 +35,8 @@ class NPCCycleManager:
         self.db.execute(
             """INSERT OR REPLACE INTO npc_cycles
                (npc_id, awake, ticks_awake, ticks_asleep,
-                active_duration, sleep_duration, next_wake_tick)
-               VALUES (?, 1, 0, 0, ?, ?, 0)""",
+                active_duration, sleep_duration, next_wake_tick, last_state_change)
+               VALUES (?, 1, 0, 0, ?, ?, 0, strftime('%s','now'))""",
             (npc["id"], active_dur, sleep_dur)
         )
 
